@@ -37,8 +37,14 @@ khz2mhz() { [ -n "$1" ] && echo $(( $1 / 1000 )) || echo ""; }
 hz2mhz()  { [ -n "$1" ] && echo $(( $1 / 1000000 )) || echo ""; }
 
 # ---- codename ----
-CN="$(rd "$ROOT/etc/codename")"
-[ -z "$CN" ] && CN="$(getprop ro.product.device 2>/dev/null || echo unknown)"
+# Trust the LIVE system property first — it reflects the actual running
+# device, whereas a file like /etc/codename can be a stale artifact left
+# over from a shared ROM build tree (e.g. baked in from one target device
+# and never overwritten per-variant), which would misidentify the device
+# on every other variant flashed from the same base.
+CN="$(getprop ro.product.device 2>/dev/null)"
+[ -z "$CN" ] && CN="$(rd "$ROOT/etc/codename")"
+[ -z "$CN" ] && CN="unknown"
 emit "codename=$CN"
 
 # ---- CPU clusters ----
@@ -113,11 +119,17 @@ if [ -n "$GPU" ] && [ -d "$GPU" ]; then
         elif [ "$gmax_tok" -ge 100000 ]    2>/dev/null; then GPU_UNIT="khz"
         fi
     fi
-    to_mhz() {  # $1 = integer in unknown unit
-        [ -z "$1" ] && { echo ""; return; }
-        if   [ "$1" -ge 100000000 ]; then echo $(( $1 / 1000000 ))   # Hz
-        elif [ "$1" -ge 100000 ];    then echo $(( $1 / 1000 ))      # kHz
-        else echo "$1"; fi                                            # MHz
+    to_mhz() {  # $1 = raw file content, possibly dirty (extra tokens, non-numeric)
+        # Extract just the FIRST integer token — some kernels report min/max
+        # lock files as "current/limit" pairs or with trailing whitespace/units
+        # rather than a bare number (seen on beyond0lte's dvfs_min_lock).
+        # Trusting the raw string as-is here previously let garbage like
+        # "572000 / 572000" or a sentinel -1 pass straight through to the UI.
+        clean="$(echo "$1" | grep -oE '[0-9]+' | head -1)"
+        [ -z "$clean" ] && { echo ""; return; }
+        if   [ "$clean" -ge 100000000 ] 2>/dev/null; then echo $(( clean / 1000000 ))   # Hz
+        elif [ "$clean" -ge 100000 ]    2>/dev/null; then echo $(( clean / 1000 ))      # kHz
+        else echo "$clean"; fi                                                          # MHz
     }
     gmhz=""
     for v in $gnums; do gmhz="$gmhz $(to_mhz "$v")"; done
@@ -135,8 +147,24 @@ if [ -n "$GPU" ] && [ -d "$GPU" ]; then
              scaling_max_freq gpu_max_freq; do
         [ -r "$GPU/$f" ] && { gmax_raw="$(rd "$GPU/$f")"; GPU_MAX_FILE="$f"; break; }
     done
-    emit "node.gpu.min=$(to_mhz "$gmin_raw")"
-    emit "node.gpu.max=$(to_mhz "$gmax_raw")"
+    gmin_mhz="$(to_mhz "$gmin_raw")"
+    gmax_mhz="$(to_mhz "$gmax_raw")"
+    # Sanity check: min/max must be a plausible frequency actually within the
+    # device's own probed OPP range. A sentinel value like -1 (captured as a
+    # bare "1" after digit-extraction) or any reading outside the real table
+    # is not trustworthy — fall back to the table's own bounds instead of
+    # exposing a value the UI would otherwise treat as real (e.g. the -1/572000
+    # anomaly seen on beyond0lte's dvfs_min_lock/dvfs_max_lock).
+    gtable_lo="$(echo "$gmhz" | tr ' ' '\n' | sort -n | head -1)"
+    gtable_hi="$(echo "$gmhz" | tr ' ' '\n' | sort -n | tail -1)"
+    if [ -z "$gmin_mhz" ] || [ "$gmin_mhz" -lt "${gtable_lo:-0}" ] 2>/dev/null || [ "$gmin_mhz" -gt "${gtable_hi:-999999}" ] 2>/dev/null; then
+        gmin_mhz="$gtable_lo"
+    fi
+    if [ -z "$gmax_mhz" ] || [ "$gmax_mhz" -lt "${gtable_lo:-0}" ] 2>/dev/null || [ "$gmax_mhz" -gt "${gtable_hi:-999999}" ] 2>/dev/null; then
+        gmax_mhz="$gtable_hi"
+    fi
+    emit "node.gpu.min=$gmin_mhz"
+    emit "node.gpu.max=$gmax_mhz"
     # expose which files we found so apply.sh writes the right ones
     [ -n "${GPU_MIN_FILE:-}" ] && emit "node.gpu.minfile=$GPU_MIN_FILE"
     [ -n "${GPU_MAX_FILE:-}" ] && emit "node.gpu.maxfile=$GPU_MAX_FILE"
@@ -281,3 +309,5 @@ if [ -z "$susfsver" ]; then
     susfsver="$(rd "$ROOT/proc/version" | grep -oE 'susfs[A-Za-z0-9._+-]*' | head -1)"
 fi
 [ -n "$susfsver" ] && emit "ver.susfs=$susfsver"
+
+exit 0

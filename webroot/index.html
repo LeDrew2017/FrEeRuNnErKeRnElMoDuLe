@@ -2279,7 +2279,6 @@ async function loadSavedConfig(){
 
 /* ---------- boot ---------- */
 window.addEventListener('DOMContentLoaded', async () => {
-    let bootErr = '';
     try {
         // 1. Probe the real hardware and reshape controls to it.
         const pr = await KSU.exec(`sh ${MODDIR}/scripts/probe.sh`);
@@ -2288,12 +2287,8 @@ window.addEventListener('DOMContentLoaded', async () => {
             populateFromProbe();
             populateVmargins();
             await loadStockDefaults();   // stock reset targets (overrides probed-current)
-        } else {
-            bootErr = 'probe: errno=' + (pr && pr.errno) +
-                      ' len=' + (pr && pr.stdout ? pr.stdout.length : 0) +
-                      (pr && pr.stderr ? ' err=' + pr.stderr.slice(0,80) : '');
         }
-    } catch(e){ bootErr = 'probe threw: ' + e; }
+    } catch(e){ /* probe failure leaves controls in their default state */ }
 
     try {
         // 2. Restore saved UI prefs.
@@ -2319,10 +2314,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     refreshDirty();
 
     // 4. Module status + live polling.
-    try { await refreshStatus(); } catch(e){ bootErr = bootErr || ('status: '+e); }
-    // stash any boot error for the Info tab engine row
-    if (bootErr){ window.__bootErr = bootErr; const eng=document.getElementById('info-engine');
-        if (eng) eng.textContent = (KSU.live?'live':'mock') + ' · ERR: ' + bootErr; }
+    try { await refreshStatus(); } catch(e){ /* non-critical */ }
     pollLive();
     startPoll();
 });

@@ -9,6 +9,6 @@ SHA256SUMS.asc
 .vscode/
 .idea/
 
-# local test scratch (mock trees are generated at /tmp by test/make_mock.sh, never committed)
+# local scratch
 /tmp/
 *.tmp

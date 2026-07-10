@@ -1,7 +1,7 @@
 id=exynos9820_tune
-name=FrEeRuNnErKeRnEl MaNaGer
+name=FrEeRuNnErKeRnEl MoDuLe
 version=v1.0.0
 versionCode=100
 author=FrEeRuNnEr4EvEr
 description=Per-cluster CPU + Mali GPU + I/O performance tuning for Exynos9820 (S10/Note10) with a Material 3 WebUI, profile system, voltage margin control, and bootloop-safe apply.
-updateJson=
+updateJson=https://raw.githubusercontent.com/LeDrew2017/FrEeRuNnErKeRnElManager/main/update.json

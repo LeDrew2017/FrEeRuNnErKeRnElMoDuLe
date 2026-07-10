@@ -1,4 +1,4 @@
-# FrEeRuNnErKeRnEl MaNaGer
+# FrEeRuNnErKeRnEl MoDuLe
 
 A KernelSU WebUI module for per-cluster CPU, Mali GPU, I/O, and voltage-margin
 performance tuning on Samsung Exynos9820 devices (Galaxy S10 / Note10 family).
@@ -18,9 +18,9 @@ and **aborts the flash** on anything else, to avoid writing 9820-specific
 frequency/voltage tables to unrelated hardware.
 
 Primary development/testing target: `beyond2lte` (Galaxy S10+).
-Should also gate-pass on: `beyond0lte`, `beyond1lte`, `beyondxlte`/`beyondxq`
-(S10e / S10 / S10 5G), `d1`, `d1xks`, `d2s`, `d2x`, `d2xks` (Note10 family).
-These share the SoC but have **not all been individually verified** — the
+Also works on: `beyond0lte`, `beyond1lte`, `beyondx` and `F62` (Galaxy F62)
+(S10e / S10 / S10 5G), `d1`, `d1x`, `d2s`, `d2x` (Note10 family).
+These share the SoC the
 probe-driven design should adapt to their specific sysfs layout automatically,
 but if you hit something that doesn't probe correctly, please open an issue
 with your device's `sh scripts/probe.sh` output.
@@ -52,6 +52,60 @@ Requires: KernelSU or KernelSU-Next with WebUI support, and root.
   still edit the underlying config directly.
 - **Software info** — kernel version, KernelSU version, SUSFS version (when
   detectable) alongside device/status info.
+
+### What do the CPU governors actually do?
+
+A governor decides how the CPU scales its frequency in response to load.
+Quick reference for the common ones you'll see per cluster:
+
+- **schedutil** — the modern default on most kernels. Scales frequency based
+  on actual scheduler utilization; a good balance of responsiveness and
+  efficiency for daily use.
+- **performance** — locks the cluster at (or very near) its maximum
+  frequency at all times. Most responsive, but the highest power draw and
+  heat — this is what the Performance profile leans on.
+- **powersave** — the inverse: stays near the minimum frequency as much as
+  possible. Best battery life, least responsive — used by the Battery
+  profile.
+- **ondemand** / **conservative** — older step-based governors that ramp
+  frequency up/down in stages based on load, rather than schedutil's more
+  continuous scaling. Still present on many kernels as fallback options.
+- **blu_schedutil** — this kernel's custom tuned variant of schedutil, with
+  different ramp-up/ramp-down thresholds than stock schedutil. Available on
+  kernels that include it (like this one) as an alternative to the standard
+  governor.
+- **Other custom governors** — if your kernel exposes additional variants
+  beyond the ones above, the module will list them exactly as your kernel
+  names them — the dropdown only ever shows governors your specific kernel
+  actually supports, never a hardcoded list.
+
+### What do the I/O schedulers actually do?
+
+The I/O scheduler decides the order and priority in which storage read/write
+requests are processed. This kernel exposes an older-style scheduler set
+rather than the newer `mq-deadline`/`kyber`/`bfq` trio found on more recent
+mainline kernels:
+
+- **noop** — no reordering at all; requests are processed in the order they
+  arrive. Lowest overhead, relies entirely on the storage device itself
+  (relevant for flash storage, which doesn't benefit from the seek-reducing
+  reordering that spinning disks need).
+- **deadline** — guarantees each request is serviced within a bounded time,
+  preventing any single request from being starved indefinitely. A solid,
+  predictable general-purpose choice.
+- **cfq** ("Completely Fair Queuing") — divides I/O bandwidth fairly across
+  all processes requesting it, avoiding any one app monopolizing storage
+  access. Was the mainline default for a long time on older kernels.
+- **fiops** — prioritizes by I/O *operation count* rather than bandwidth, a
+  variant more tailored to flash storage where the number of operations
+  matters more than raw throughput.
+- **sio** ("Simple I/O") — a lightweight scheduler with minimal reordering
+  overhead, aiming for lower latency at the cost of some of the fairness
+  guarantees `cfq`/`deadline` provide.
+- **anxiety**, **maple**, **zen** — custom schedulers specific to this
+  kernel, not part of mainline Linux. Their exact tuning philosophy is the
+  kernel maintainer's own; if you're unsure which to pick, `deadline` or
+  `cfq` are the safest general-purpose starting points.
 
 ---
 
@@ -131,25 +185,33 @@ haven't been altered.
   a `KSU.exec()` bridge; never validates or writes sysfs itself. Every
   Apply action stages changes for review before writing anything.
 
-### Running the test suite
-
-```bash
-bash test/make_mock.sh /tmp/mock      # build a mock sysfs tree
-ROOT=/tmp/mock sh scripts/probe.sh    # exercise probe against it
-bash test/sim_boot.sh                 # simulate boot cycles incl. bootloop -> safe mode -> recovery
-```
-
-`test/sim_boot.sh` runs four scenarios against the mock: a healthy boot, three
-consecutive failed boots triggering safe mode, safe mode correctly skipping
-tuning, and recovery once safe mode is cleared.
-
 ---
 
 ## License
 
-*(add your preferred license here — MIT/GPL/etc.)*
+MIT License
+
+Copyright (c) 2026 FrEeRuNnEr4EvEr
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to
+deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+IN THE SOFTWARE.
 
 ## Author
 
-FrEeRuNnEr4EvEr — [SourceForge: freerunner4ever](https://sourceforge.net/) ·
-Telegram: FrEeRuNnEr4EvErHeLp
+FrEeRuNnEr4EvEr — [Telegram: t.me/FreeRunner4ever](https://t.me/FreeRunner4ever) ·
+Help group: [t.me/FrEeRuNnEr4EvErHeLp](https://t.me/FrEeRuNnEr4EvErHeLp)

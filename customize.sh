@@ -33,11 +33,12 @@ case "$PLATFORM$BOARD$HARDWARE" in
     *exynos9820*|*universal9820*|*9820*) is_9820=1 ;;
 esac
 
-# ---- Codename allowlist (S10 / Note10 Exynos family) as a fallback ----
-# beyond0/1/2lte = S10e/S10/S10+, beyondx = S10 5G, d1/d2/d2x = Note10/Note10+.
+# ---- Codename allowlist (S10 / Note10 / M62 Exynos9820 family) ----
+# beyond0/1/2lte = S10e/S10/S10+, beyondx = S10 5G,
+# d1/d1x = Note10/Note10 5G, d2s/d2x = Note10+/Note10+ 5G, f62 = Galaxy M62.
 case "$DEVICE" in
-    beyond0lte|beyond1lte|beyond2lte|beyondxlte|beyondxq|\
-    d1|d1xks|d2s|d2x|d2xks|d1q|d2q)
+    beyond0lte|beyond1lte|beyond2lte|beyondx|\
+    d1|d1x|d2s|d2x|f62)
         is_9820=1 ;;
 esac
 
