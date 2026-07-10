@@ -1,0 +1,14 @@
+# build artifacts / flashable zips (published via GitHub Releases / SourceForge instead)
+*.zip
+SHA256SUMS
+SHA256SUMS.asc
+
+# editor / OS cruft
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# local test scratch (mock trees are generated at /tmp by test/make_mock.sh, never committed)
+/tmp/
+*.tmp

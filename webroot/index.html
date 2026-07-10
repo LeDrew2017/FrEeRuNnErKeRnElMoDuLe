@@ -1,0 +1,2331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<!--
+  Exynos9820 Tuner — theme scaffold
+  M3 Expressive tokens + 6 wallpaper presets lifted from CellBlock9's theme,
+  with a real light/dark switch added. This is a clickable UI shell only:
+  the four-tab bottom nav works and the theme is fully wired. No tuning logic,
+  no ksu.exec(), no sysfs writes yet — that gets built on top of this.
+-->
+<title>Exynos9820 Tuner</title>
+<style>
+:root{
+    /* ---- Material 3 Expressive tokens (dark, default) ---- */
+    --m3-primary:#a3b1c6;
+    --m3-on-primary:#121820;
+    --m3-primary-container:#39424d;
+    --m3-secondary:#b9ccb4;
+    --m3-surface:#12140f;
+    --m3-surface-container:rgba(255,255,255,0.04);
+    --m3-surface-container-high:rgba(255,255,255,0.08);
+    --m3-surface-container-highest:rgba(255,255,255,0.12);
+    --m3-on-surface:#f4f7f4;
+    --m3-on-surface-variant:#c4cdc4;
+    --m3-outline:rgba(255,255,255,0.14);
+    --m3-error:#ffb4ab;
+    --m3-elevation-1: 0 1px 3px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.25);
+    --m3-elevation-3: 0 4px 12px rgba(0,0,0,.40), 0 2px 4px rgba(0,0,0,.30);
+    --shape-xs:12px; --shape-sm:16px; --shape-md:20px; --shape-lg:28px; --shape-xl:36px; --shape-full:999px;
+    --app-max:480px;
+    --bottomzone-h:96px;
+    --motion-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --motion-standard: cubic-bezier(0.2, 0, 0, 1);
+    --wallpaper: linear-gradient(135deg, #2d3238 0%, #1a1d21 100%);
+    --font-family: -apple-system, 'Segoe UI', Roboto, 'Google Sans', Helvetica, Arial, sans-serif;
+    --glass-blur: blur(28px) saturate(1.4);
+}
+
+/* ---- Light theme overrides ----
+   Applied when body has .theme-light. The wallpaper presets stay gradient-based
+   (they read as "themes"), but the surface + on-surface roles flip to light so
+   text, cards, nav, and switches all inarguably read as light mode. */
+body.theme-light{
+    --m3-on-primary:#ffffff;
+    --m3-surface:#f6f7f9;
+    --m3-surface-container:rgba(0,0,0,0.04);
+    --m3-surface-container-high:rgba(0,0,0,0.07);
+    --m3-surface-container-highest:rgba(0,0,0,0.11);
+    --m3-on-surface:#1a1c1e;
+    --m3-on-surface-variant:#43474b;
+    --m3-outline:rgba(0,0,0,0.16);
+    --m3-error:#ba1a1a;
+    --m3-elevation-1: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.08);
+    --m3-elevation-3: 0 4px 12px rgba(0,0,0,.16), 0 2px 4px rgba(0,0,0,.10);
+    --glass-blur: blur(28px) saturate(1.2) brightness(1.08);
+}
+
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+html,body{height:100%;overscroll-behavior:none;}
+body{
+    font-family:var(--font-family);
+    background:var(--wallpaper);
+    background-size:cover;background-attachment:fixed;background-position:center;
+    color:var(--m3-on-surface);
+    height:100dvh;width:100vw;overflow:hidden;
+    display:flex;flex-direction:column;
+    -webkit-user-select:none;user-select:none;
+    transition:background 0.6s var(--motion-standard), color .3s var(--motion-standard);
+}
+button,input,select,textarea{font-family:inherit;color:inherit;}
+button{cursor:pointer;border:none;background:none;}
+::-webkit-scrollbar{width:0;height:0;}
+
+/* ---------- Wallpaper presets (6) — aerospace / industrial ----------
+   Each carries a light variant so switching to light mode keeps the accent
+   coherent instead of clashing with a dark-tuned primary. */
+.wp-titanium{
+    --wallpaper: linear-gradient(135deg, #2d3238 0%, #1a1d21 100%);
+    --m3-primary:#a3b1c6; --m3-on-primary:#121820; --m3-primary-container:#39424d;
+}
+.wp-titanium.theme-light{
+    --wallpaper: linear-gradient(135deg, #dfe4ec 0%, #c3ccd8 100%);
+    --m3-primary:#3a5b8c; --m3-primary-container:#d4e2f7;
+}
+.wp-carbon{
+    --wallpaper: linear-gradient(135deg, #1c1c1c 0%, #0a0a0a 100%);
+    --m3-primary:#9e9e9e; --m3-on-primary:#000000; --m3-primary-container:#333333;
+}
+.wp-carbon.theme-light{
+    --wallpaper: linear-gradient(135deg, #e8e8e8 0%, #cfcfcf 100%);
+    --m3-primary:#4a4a4a; --m3-primary-container:#dcdcdc;
+}
+.wp-oxide{
+    --wallpaper: linear-gradient(135deg, #3d2a22 0%, #1f140f 100%);
+    --m3-primary:#d49575; --m3-on-primary:#3b1908; --m3-primary-container:#5c2f1a;
+}
+.wp-oxide.theme-light{
+    --wallpaper: linear-gradient(135deg, #f0ded4 0%, #dcbfae 100%);
+    --m3-primary:#8f4a28; --m3-primary-container:#ffdbc9;
+}
+.wp-cobalt{
+    --wallpaper: linear-gradient(135deg, #1f2c3d 0%, #0d141f 100%);
+    --m3-primary:#8ba8d4; --m3-on-primary:#0a1b33; --m3-primary-container:#2b405e;
+}
+.wp-cobalt.theme-light{
+    --wallpaper: linear-gradient(135deg, #dbe4f2 0%, #bccbe4 100%);
+    --m3-primary:#2f5090; --m3-primary-container:#d7e2ff;
+}
+.wp-avionics{
+    --wallpaper: linear-gradient(135deg, #2b3327 0%, #141a11 100%);
+    --m3-primary:#9eb58c; --m3-on-primary:#1e2e13; --m3-primary-container:#3a4a2e;
+}
+.wp-avionics.theme-light{
+    --wallpaper: linear-gradient(135deg, #dde6d4 0%, #c2d1b3 100%);
+    --m3-primary:#4c6438; --m3-primary-container:#cdeab3;
+}
+.wp-tungsten{
+    --wallpaper: linear-gradient(135deg, #332d29 0%, #1c1815 100%);
+    --m3-primary:#c2aa93; --m3-on-primary:#332213; --m3-primary-container:#524233;
+}
+.wp-tungsten.theme-light{
+    --wallpaper: linear-gradient(135deg, #ece2d6 0%, #d6c6b2 100%);
+    --m3-primary:#7a5a3c; --m3-primary-container:#ffdcbc;
+}
+
+/* ---------- App shell ---------- */
+.topbar,.chip-row,.content{width:100%;max-width:var(--app-max);margin-left:auto;margin-right:auto;}
+.topbar{display:flex;align-items:center;gap:12px;padding:calc(env(safe-area-inset-top,0px) + 14px) 18px 12px;}
+.topbar h2{font-size:1.15rem;font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.topbar .device-pill{font-size:.72rem;font-weight:700;letter-spacing:.4px;padding:5px 11px;border-radius:var(--shape-full);background:var(--m3-primary-container);color:var(--m3-on-surface);}
+.hdr-apply{display:flex;align-items:center;gap:5px;height:38px;padding:0 16px;border-radius:var(--shape-full);
+    font-size:.85rem;font-weight:700;flex-shrink:0;transition:transform .15s var(--motion-spring),background .2s,color .2s;
+    background:var(--m3-surface-container-high);color:var(--m3-on-surface-variant);}
+.hdr-apply svg{width:16px;height:16px;}
+.hdr-apply:active{transform:scale(0.94);}
+.hdr-apply.dirty{background:var(--m3-primary);color:var(--m3-on-primary);}
+.hdr-apply:disabled{opacity:0.55;}
+.hdr-revert{height:38px;padding:0 12px;border-radius:var(--shape-full);font-size:.82rem;font-weight:700;
+    flex-shrink:0;background:transparent;color:var(--m3-on-surface-variant);border:1px solid var(--m3-outline);
+    transition:transform .15s var(--motion-spring);}
+.hdr-revert:active{transform:scale(0.94);}
+
+.btn-icon{width:44px;height:44px;border-radius:var(--shape-full);display:flex;align-items:center;justify-content:center;background:var(--m3-surface-container-high);flex-shrink:0;border:1px solid var(--m3-outline);}
+.btn-icon svg{width:20px;height:20px;stroke:var(--m3-on-surface);}
+.btn-icon:active{transform:scale(0.92);}
+.theme-indicator{width:44px;height:44px;border-radius:var(--shape-full);display:flex;align-items:center;justify-content:center;background:var(--m3-surface-container);flex-shrink:0;pointer-events:none;}
+.theme-indicator svg{width:20px;height:20px;stroke:var(--m3-on-surface-variant);transition:stroke .3s;}
+
+.content{flex:1;overflow-y:auto;padding:0 14px calc(var(--bottomzone-h) + 14px + env(safe-area-inset-bottom,0px));-webkit-overflow-scrolling:touch;}
+
+/* Glass surface */
+.surface{
+    background:var(--m3-surface-container);
+    backdrop-filter:var(--glass-blur);
+    -webkit-backdrop-filter:var(--glass-blur);
+    border:1px solid var(--m3-outline);
+}
+
+.section-label{font-size:.8rem;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--m3-on-surface-variant);padding:18px 8px 8px;}
+
+/* ---------- Module brand header (Home tab only) ---------- */
+.brand-header{display:flex;align-items:center;gap:12px;padding:6px 8px 16px;margin-bottom:2px;
+    border-bottom:1px solid var(--m3-outline);}
+.brand-icon{width:30px;height:30px;flex-shrink:0;stroke:var(--m3-primary);
+    filter:drop-shadow(0 0 6px rgba(139,168,212,0.45));}
+.brand-text{display:flex;flex-direction:column;line-height:1.15;min-width:0;}
+.brand-name{font-size:1.18rem;font-weight:800;letter-spacing:.3px;
+    background:linear-gradient(90deg,var(--m3-on-surface) 0%,var(--m3-primary) 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.brand-sub{font-size:.64rem;font-weight:700;letter-spacing:2px;color:var(--m3-on-surface-variant);
+    text-transform:uppercase;margin-top:2px;}
+.brand-tagline{margin-left:auto;padding-left:10px;font-size:.64rem;font-weight:700;letter-spacing:2px;
+    font-style:normal;color:var(--m3-on-surface-variant);text-transform:uppercase;white-space:nowrap;flex-shrink:0;}
+
+/* ---------- Vitals ring grid ---------- */
+.ring-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:4px 8px;}
+.ring-item{border-radius:var(--shape-lg);background:var(--m3-surface-container);border:1px solid var(--m3-outline);
+    backdrop-filter:var(--glass-blur);-webkit-backdrop-filter:var(--glass-blur);
+    padding:14px 8px 12px;display:flex;flex-direction:column;align-items:center;box-shadow:var(--m3-elevation-1);}
+.ring-wrap{position:relative;width:88px;height:88px;}
+.ring-svg{width:88px;height:88px;transform:rotate(-90deg);}
+.ring-track{fill:none;stroke:var(--m3-surface-container-highest);stroke-width:9;}
+.ring-fill{fill:none;stroke:var(--m3-primary);stroke-width:9;stroke-linecap:round;
+    transition:stroke-dashoffset .6s var(--motion-standard), stroke .4s var(--motion-standard);}
+.ring-value{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    font-size:1.05rem;font-weight:800;font-variant-numeric:tabular-nums;color:var(--m3-on-surface);}
+.ring-title{margin-top:8px;font-size:.68rem;font-weight:600;color:var(--m3-on-surface-variant);text-align:center;}
+.section-head{display:flex;align-items:center;justify-content:space-between;padding:18px 8px 8px;}
+.spark-card{padding:14px 12px 10px;}
+.spark-row{display:flex;align-items:stretch;gap:8px;}
+.spark-axis{display:flex;flex-direction:column;justify-content:space-between;
+    padding:2px 0;font-size:.62rem;font-weight:700;color:var(--m3-on-surface-variant);
+    font-variant-numeric:tabular-nums;flex-shrink:0;}
+.spark-svg{flex:1;min-width:0;height:90px;display:block;}
+.spark-grid{stroke:var(--m3-outline);stroke-width:1;}
+.spark-line{fill:none;stroke-width:2.4;stroke-linejoin:round;stroke-linecap:round;
+    transition:points .3s var(--motion-standard);}
+.spark-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;padding:0 2px;}
+.spark-legend span{display:flex;align-items:center;gap:5px;font-size:.7rem;font-weight:600;color:var(--m3-on-surface-variant);}
+.spark-legend i{width:9px;height:9px;border-radius:50%;display:inline-block;}
+.section-head .section-label{padding:0;}
+.reset-btn{display:flex;align-items:center;gap:5px;height:30px;padding:0 12px;border-radius:var(--shape-full);background:var(--m3-surface-container-high);border:1px solid var(--m3-outline);font-size:.72rem;font-weight:700;color:var(--m3-on-surface-variant);transition:transform .15s var(--motion-spring),color .2s;}
+.reset-btn:active{transform:scale(0.93);}
+.reset-btn svg{width:14px;height:14px;stroke:var(--m3-on-surface-variant);}
+.reset-btn.reset-all{color:var(--m3-error);border-color:rgba(255,180,171,0.3);}
+.reset-btn.reset-all svg{stroke:var(--m3-error);}
+
+/* ---------- Voltage margins (standalone, manual-only) ---------- */
+.vmargin-warn{margin:0 8px 8px;padding:12px 14px;border-radius:var(--shape-md);
+    background:rgba(255,180,171,0.10);border:1px solid rgba(255,180,171,0.3);
+    color:var(--m3-error);font-size:.78rem;font-weight:600;line-height:1.4;}
+.vmargin-numbox{width:52px;height:28px;border-radius:var(--shape-sm);text-align:center;
+    background:var(--m3-surface-container-high);border:1px solid var(--m3-outline);
+    color:var(--m3-on-surface);font-weight:700;font-size:.85rem;font-variant-numeric:tabular-nums;
+    -moz-appearance:textfield;}
+.vmargin-numbox::-webkit-outer-spin-button,.vmargin-numbox::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+.slider-row .sv{display:flex;align-items:center;gap:4px;}
+.vmargin-scale{display:flex;justify-content:space-between;font-size:.68rem;font-weight:700;
+    color:var(--m3-on-surface-variant);padding:4px 2px 0;font-variant-numeric:tabular-nums;}
+.vmargin-actions{display:flex;gap:10px;padding:10px 12px 14px;align-items:center;}
+.vmargin-actions .hdr-apply{flex:1;justify-content:center;}
+#vmargin-slider{accent-color:var(--m3-error);}
+
+.card{border-radius:var(--shape-lg);padding:6px 4px;box-shadow:var(--m3-elevation-1);margin-bottom:4px;}
+
+/* Profile selector */
+.profile-row{display:flex;gap:10px;padding:6px 8px 2px;}
+.profile-opt{
+    flex:1;border-radius:var(--shape-md);padding:16px 8px;display:flex;flex-direction:column;align-items:center;gap:8px;
+    background:var(--m3-surface-container-high);border:2px solid transparent;
+    transition:transform .15s var(--motion-spring), border-color .2s, background .2s;
+}
+.profile-opt:active{transform:scale(0.96);}
+.profile-opt.sel{border-color:var(--m3-primary);background:var(--m3-primary-container);}
+.profile-opt svg{width:24px;height:24px;stroke:var(--m3-primary);}
+.profile-opt.sel svg{stroke:var(--m3-on-surface);}
+.profile-opt .pn{font-size:.85rem;font-weight:700;}
+
+/* Setting rows */
+.option-row{display:flex;align-items:center;gap:14px;padding:14px 12px;border-radius:var(--shape-md);}
+.option-row + .option-row{border-top:1px solid var(--m3-outline);border-radius:0;}
+.option-row .oi{width:42px;height:42px;border-radius:var(--shape-sm);background:var(--m3-surface-container-high);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.option-row .oi svg{width:20px;height:20px;stroke:var(--m3-primary);}
+.option-meta{flex:1;min-width:0;}
+.option-meta .ot{font-size:.98rem;font-weight:600;}
+.option-meta .os{font-size:.8rem;color:var(--m3-on-surface-variant);margin-top:2px;line-height:1.3;}
+.option-val{font-size:.85rem;font-weight:700;color:var(--m3-primary);font-variant-numeric:tabular-nums;}
+.m3-select{
+    flex-shrink:0;appearance:none;-webkit-appearance:none;
+    height:40px;padding:0 34px 0 14px;border-radius:var(--shape-full);
+    background:var(--m3-surface-container-high);border:1.5px solid var(--m3-outline);
+    color:var(--m3-on-surface);font-size:.85rem;font-weight:700;max-width:52%;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23a3b1c6' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+    background-repeat:no-repeat;background-position:right 9px center;
+    transition:border-color .2s var(--motion-standard), background-color .2s;
+}
+.m3-select:focus{outline:none;border-color:var(--m3-primary);}
+.m3-select:active{background-color:var(--m3-surface-container-highest);}
+.m3-select option{background:#1a1d21;color:var(--m3-on-surface);font-weight:600;}
+
+/* Switch (lifted) */
+.switch{width:46px;height:28px;border-radius:var(--shape-full);background:var(--m3-surface-container-high);border:2px solid var(--m3-outline);position:relative;flex-shrink:0;transition:background .2s;}
+.switch .knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:var(--m3-on-surface-variant);transition:transform .22s var(--motion-spring),background .2s;}
+.switch.on{background:var(--m3-primary);border-color:var(--m3-primary);}
+.switch.on .knob{transform:translateX(18px);background:var(--m3-on-primary);}
+
+/* Sliders (advanced) */
+.slider-row{padding:12px;}
+.slider-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.slider-head .sl{font-size:.92rem;font-weight:600;}
+.slider-head .sv{font-size:.85rem;font-weight:700;color:var(--m3-primary);font-variant-numeric:tabular-nums;}
+input[type=range]{-webkit-appearance:none;width:100%;height:6px;border-radius:3px;background:var(--m3-surface-container-highest);outline:none;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--m3-primary);box-shadow:var(--m3-elevation-1);cursor:pointer;transition:transform .15s var(--motion-spring);}
+input[type=range]::-webkit-slider-thumb:active{transform:scale(1.2);}
+
+/* Wallpaper grid */
+.wallpaper-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:8px;}
+.wp-opt{aspect-ratio:1;border-radius:var(--shape-md);outline:3px solid transparent;outline-offset:-3px;position:relative;overflow:hidden;transition:transform .15s var(--motion-spring), outline .2s;background:var(--wallpaper);background-size:cover;background-position:center;}
+.wp-opt:active{transform:scale(0.94);}
+.wp-opt.sel{outline-color:var(--m3-primary);}
+.wp-opt span{position:absolute;bottom:5px;left:7px;font-size:.68rem;font-weight:700;background:rgba(0,0,0,0.65);padding:3px 6px;border-radius:6px;color:#fff;}
+
+/* Info rows */
+.kv-row{display:flex;justify-content:space-between;align-items:center;padding:12px 12px;font-size:.9rem;}
+.kv-row + .kv-row{border-top:1px solid var(--m3-outline);}
+.kv-row .k{color:var(--m3-on-surface-variant);flex-shrink:0;}
+.kv-row .v{font-weight:700;font-variant-numeric:tabular-nums;color:var(--m3-on-surface);text-align:right;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.status-ok{color:#7fd18a !important;}
+
+/* Long values (e.g. a full kernel build string) — wrap and grow the row
+   instead of clipping with an ellipsis. Row switches to a stacked layout so
+   the long value gets the full card width to breathe. */
+.kv-row.kv-wrap{flex-direction:column;align-items:stretch;gap:6px;padding:14px 12px;}
+.kv-row.kv-wrap .k{font-size:.78rem;font-weight:700;letter-spacing:.3px;
+    text-transform:uppercase;color:var(--m3-on-surface-variant);}
+.kv-row.kv-wrap .v{max-width:100%;white-space:normal;overflow-wrap:break-word;word-break:normal;
+    text-align:left;font-size:.88rem;font-weight:600;line-height:1.5;letter-spacing:.2px;}
+
+/* ---------- Bottom nav (lifted) ---------- */
+.bottomzone{position:fixed;left:0;right:0;bottom:0;display:flex;justify-content:center;padding:0 16px calc(18px + env(safe-area-inset-bottom,0px));pointer-events:none;z-index:30;}
+.navbar{
+    pointer-events:auto;width:100%;max-width:var(--app-max);height:68px;border-radius:var(--shape-full);
+    display:flex;align-items:center;justify-content:space-around;padding:0 8px;
+    background:var(--m3-surface-container-high);backdrop-filter:blur(30px) saturate(1.5);
+    -webkit-backdrop-filter:blur(30px) saturate(1.5);border:1px solid var(--m3-outline);box-shadow:var(--m3-elevation-3);
+}
+.navitem{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;width:72px;height:56px;border-radius:var(--shape-lg);transition:background .2s var(--motion-standard);overflow:hidden;}
+.navitem .ind{position:absolute;inset:0;border-radius:var(--shape-lg);background:var(--m3-primary);transform:scale(0.6);opacity:0;transition:transform .25s var(--motion-spring),opacity .2s;z-index:0;}
+.navitem svg{width:22px;height:22px;stroke:var(--m3-on-surface-variant);transition:stroke .2s;z-index:1;}
+.navitem span{font-size:.62rem;font-weight:600;color:var(--m3-on-surface-variant);transition:color .2s;z-index:1;line-height:1;white-space:nowrap;}
+.navitem.active .ind{transform:scale(1);opacity:1;}
+.navitem.active svg{stroke:var(--m3-on-primary);}
+.navitem.active span{color:var(--m3-on-primary);font-weight:700;}
+
+/* screens */
+.tab{display:none;}
+.tab.active{display:block;}
+
+/* ---------- Lock overlay ---------- */
+#lock-overlay{
+    position:fixed;inset:0;z-index:200;
+    background:var(--wallpaper);background-size:cover;background-position:center;
+    display:flex;align-items:center;justify-content:center;padding:24px;
+}
+.lock-card{
+    width:100%;max-width:340px;border-radius:var(--shape-lg);padding:32px 24px;
+    display:flex;flex-direction:column;align-items:center;text-align:center;
+    box-shadow:var(--m3-elevation-3);
+}
+.lock-icon{width:64px;height:64px;border-radius:var(--shape-full);background:var(--m3-primary-container);
+    display:flex;align-items:center;justify-content:center;margin-bottom:18px;}
+.lock-icon svg{width:30px;height:30px;stroke:var(--m3-on-surface);}
+.lock-title{font-size:1.25rem;font-weight:700;margin-bottom:6px;}
+.lock-sub{font-size:.82rem;color:var(--m3-on-surface-variant);margin-bottom:22px;line-height:1.4;}
+.lock-input{width:100%;height:52px;border-radius:var(--shape-md);padding:0 16px;
+    background:var(--m3-surface-container-high);border:1.5px solid var(--m3-outline);
+    color:var(--m3-on-surface);font-size:1rem;text-align:center;letter-spacing:.1em;outline:none;
+    transition:border-color .2s;}
+.lock-input:focus{border-color:var(--m3-primary);}
+.lock-err{min-height:20px;font-size:.8rem;color:var(--m3-error);margin:8px 0 4px;font-weight:600;}
+.lock-btn{width:100%;height:50px;border-radius:var(--shape-full);background:var(--m3-primary);
+    color:var(--m3-on-primary);font-size:.95rem;font-weight:700;margin-top:4px;transition:transform .15s var(--motion-spring);}
+.lock-btn:active{transform:scale(0.97);}
+
+/* ---------- Dirty badge on profile ---------- */
+.profile-status{display:flex;align-items:center;gap:8px;padding:2px 10px 10px;min-height:26px;}
+.profile-status .ps-dot{width:8px;height:8px;border-radius:50%;background:var(--m3-primary);flex-shrink:0;opacity:0;transform:scale(0);transition:opacity .2s,transform .2s var(--motion-spring);}
+.profile-status .ps-text{font-size:.82rem;font-weight:600;color:var(--m3-on-surface-variant);}
+.profile-status.dirty .ps-dot{opacity:1;transform:scale(1);}
+.profile-status.dirty .ps-text{color:var(--m3-primary);}
+
+/* ---------- Apply / Revert bar ---------- */
+.applybar{
+    position:fixed;left:0;right:0;
+    bottom:calc(var(--bottomzone-h) + 6px + env(safe-area-inset-bottom,0px));
+    z-index:35;
+    display:flex;justify-content:center;
+    padding:0 16px;
+    transform:translateY(220%);transition:transform .32s var(--motion-spring);
+    pointer-events:none;
+}
+.applybar.show{transform:translateY(0);}
+.applybar-inner{
+    pointer-events:auto;width:100%;max-width:var(--app-max);
+    display:flex;align-items:center;gap:10px;padding:12px 12px 12px 18px;
+    border-radius:var(--shape-full);
+    background:var(--m3-surface-container-highest);
+    backdrop-filter:blur(30px) saturate(1.5);-webkit-backdrop-filter:blur(30px) saturate(1.5);
+    border:1px solid var(--m3-outline);box-shadow:var(--m3-elevation-3);
+}
+.applybar-inner .ab-label{flex:1;font-size:.85rem;font-weight:600;color:var(--m3-on-surface-variant);}
+.applybar-inner .ab-label b{color:var(--m3-on-surface);font-weight:700;}
+.ab-btn{height:44px;padding:0 20px;border-radius:var(--shape-full);font-size:.9rem;font-weight:700;display:flex;align-items:center;gap:6px;transition:transform .15s var(--motion-spring),opacity .2s;}
+.ab-btn:active{transform:scale(0.95);}
+.ab-revert{background:transparent;color:var(--m3-on-surface-variant);padding:0 14px;}
+.ab-apply{background:var(--m3-primary);color:var(--m3-on-primary);}
+
+/* ---------- Toast ---------- */
+#toast{
+    position:fixed;left:50%;bottom:calc(var(--bottomzone-h) + 20px + env(safe-area-inset-bottom,0px));
+    transform:translate(-50%,20px);z-index:80;max-width:88vw;text-align:center;
+    background:var(--m3-surface-container-highest);border:1px solid var(--m3-outline);
+    padding:12px 20px;border-radius:var(--shape-full);font-size:.85rem;font-weight:600;
+    opacity:0;pointer-events:none;box-shadow:var(--m3-elevation-3);
+    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    transition:opacity .3s var(--motion-spring),transform .3s var(--motion-spring);
+}
+#toast.show{opacity:1;transform:translate(-50%,0);}
+
+/* live value pulse when a polled number changes */
+.v.tick{animation:vtick .5s var(--motion-standard);}
+@keyframes vtick{0%{color:var(--m3-primary);}100%{color:var(--m3-on-surface);}}
+
+@media (max-height:480px){
+    .topbar{padding:calc(env(safe-area-inset-top,0px) + 8px) 18px 8px;}
+    .navbar{height:56px;}
+    .navitem{height:44px;}
+    .navitem .ind{height:26px;top:3px;}
+    .bottomzone{padding:0 16px calc(10px + env(safe-area-inset-bottom,0px));}
+}
+</style>
+</head>
+<body class="wp-titanium">
+
+<!-- Lock overlay: shown on open when a password is set. Deterrence gate for the
+     UI only (root can edit config directly) — kept honest in the subtitle. -->
+<div id="lock-overlay" style="display:none;">
+    <div class="lock-card surface">
+        <div class="lock-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+        </div>
+        <div class="lock-title" id="lock-title">Enter PIN</div>
+        <div class="lock-sub" id="lock-sub">Unlock the tuner interface</div>
+        <input type="password" id="lock-input" class="lock-input" autocomplete="off"
+               inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="••••••"
+               oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+               onkeydown="if(event.key==='Enter')lockSubmit()">
+        <div class="lock-err" id="lock-err"></div>
+        <button class="lock-btn" id="lock-submit" onclick="lockSubmit()">Unlock</button>
+    </div>
+</div>
+
+<div class="topbar">
+    <h2 id="tab-title">Home</h2>
+    <span class="device-pill" id="device-pill">beyond2lte</span>
+    <button class="hdr-revert" id="hdr-revert" onclick="revertChanges()" style="display:none;">Revert</button>
+    <button class="hdr-apply" id="hdr-apply" onclick="applyChanges()" disabled>
+        <svg id="hdr-apply-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+        <span id="hdr-apply-txt">Saved</span>
+    </button>
+    <span class="theme-indicator" id="theme-toggle" aria-hidden="true">
+        <svg id="theme-icon" viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
+    </span>
+</div>
+
+<div class="content">
+
+    <!-- ============ HOME ============ -->
+    <section class="tab active" data-tab="home">
+        <div class="brand-header">
+            <svg viewBox="0 0 24 24" class="brand-icon" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>
+            <div class="brand-text">
+                <span class="brand-name">FrEeRuNnErKeRnEl</span>
+                <span class="brand-sub">M o D u L e</span>
+            </div>
+            <span class="brand-tagline">Free your device</span>
+        </div>
+        <div class="section-label">Profile</div>
+        <div class="card surface">
+            <div class="profile-row">
+                <button class="profile-opt" data-profile="battery" onclick="selectProfile(this)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="16" height="10" rx="2"/><path d="M22 10v4"/><path d="M6 10v4"/></svg>
+                    <span class="pn">Battery</span>
+                </button>
+                <button class="profile-opt sel" data-profile="balanced" onclick="selectProfile(this)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 8l7-5 7 5"/><circle cx="12" cy="14" r="3"/></svg>
+                    <span class="pn">Balanced</span>
+                </button>
+                <button class="profile-opt" data-profile="performance" onclick="selectProfile(this)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>
+                    <span class="pn">Performance</span>
+                </button>
+            </div>
+            <div class="profile-status" id="profile-status">
+                <span class="ps-dot"></span>
+                <span class="ps-text" id="ps-text">Balanced profile active</span>
+            </div>
+        </div>
+
+        <div class="section-label">Vitals</div>
+        <div class="ring-grid">
+            <div class="ring-item">
+                <div class="ring-wrap">
+                    <svg viewBox="0 0 100 100" class="ring-svg">
+                        <circle cx="50" cy="50" r="42" class="ring-track"/>
+                        <circle cx="50" cy="50" r="42" class="ring-fill" id="ring-ram" stroke-dasharray="264" stroke-dashoffset="264"/>
+                    </svg>
+                    <div class="ring-value" id="ring-ram-val">—</div>
+                </div>
+                <div class="ring-title">RAM</div>
+            </div>
+            <div class="ring-item">
+                <div class="ring-wrap">
+                    <svg viewBox="0 0 100 100" class="ring-svg">
+                        <circle cx="50" cy="50" r="42" class="ring-track"/>
+                        <circle cx="50" cy="50" r="42" class="ring-fill" id="ring-batt" stroke-dasharray="264" stroke-dashoffset="264"/>
+                    </svg>
+                    <div class="ring-value" id="ring-batt-val">—</div>
+                </div>
+                <div class="ring-title">Battery</div>
+            </div>
+            <div class="ring-item">
+                <div class="ring-wrap">
+                    <svg viewBox="0 0 100 100" class="ring-svg">
+                        <circle cx="50" cy="50" r="42" class="ring-track"/>
+                        <circle cx="50" cy="50" r="42" class="ring-fill" id="ring-cputemp" stroke-dasharray="264" stroke-dashoffset="264"/>
+                    </svg>
+                    <div class="ring-value" id="ring-cputemp-val">—</div>
+                </div>
+                <div class="ring-title">CPU temp</div>
+            </div>
+            <div class="ring-item">
+                <div class="ring-wrap">
+                    <svg viewBox="0 0 100 100" class="ring-svg">
+                        <circle cx="50" cy="50" r="42" class="ring-track"/>
+                        <circle cx="50" cy="50" r="42" class="ring-fill" id="ring-gputemp" stroke-dasharray="264" stroke-dashoffset="264"/>
+                    </svg>
+                    <div class="ring-value" id="ring-gputemp-val">—</div>
+                </div>
+                <div class="ring-title">GPU temp</div>
+            </div>
+        </div>
+
+        <div class="section-label">Frequency &mdash; last 30s (% of each cluster's max)</div>
+        <div class="card surface spark-card">
+            <div class="spark-row">
+                <div class="spark-axis">
+                    <span>100%</span><span>50%</span><span>0%</span>
+                </div>
+                <svg viewBox="0 0 300 100" class="spark-svg" id="spark-svg" preserveAspectRatio="none">
+                    <line x1="0" y1="6" x2="300" y2="6" class="spark-grid"/>
+                    <line x1="0" y1="50" x2="300" y2="50" class="spark-grid"/>
+                    <line x1="0" y1="94" x2="300" y2="94" class="spark-grid"/>
+                    <polyline id="spark-big" class="spark-line" style="stroke:#8ba8d4"/>
+                    <polyline id="spark-mid" class="spark-line" style="stroke:#9eb58c"/>
+                    <polyline id="spark-little" class="spark-line" style="stroke:#c2aa93"/>
+                    <polyline id="spark-gpu" class="spark-line" style="stroke:#d49575"/>
+                </svg>
+            </div>
+            <div class="spark-legend">
+                <span><i style="background:#8ba8d4"></i>Big</span>
+                <span><i style="background:#9eb58c"></i>Mid</span>
+                <span><i style="background:#c2aa93"></i>Little</span>
+                <span><i style="background:#d49575"></i>GPU</span>
+            </div>
+        </div>
+
+        <div class="section-label">Live status</div>
+        <div class="card surface">
+            <div class="kv-row"><span class="k">Big cluster (M4)</span><span class="v" id="lv-big">2314 MHz</span></div>
+            <div class="kv-row"><span class="k">Mid cluster (A75)</span><span class="v" id="lv-mid">2002 MHz</span></div>
+            <div class="kv-row"><span class="k">Little cluster (A55)</span><span class="v" id="lv-little">1794 MHz</span></div>
+            <div class="kv-row"><span class="k">GPU (Mali-G76)</span><span class="v" id="lv-gpu">702 MHz</span></div>
+            <div class="kv-row"><span class="k">Battery health</span><span class="v" id="lv-batthealth">—</span></div>
+        </div>
+    </section>
+
+    <!-- ============ ADVANCED ============ -->
+    <section class="tab" data-tab="advanced">
+        <div class="section-head">
+            <span class="section-label">Tuning</span>
+            <button class="reset-btn reset-all" onclick="resetAll()"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Reset all</button>
+        </div>
+        <div class="section-head">
+            <span class="section-label">CPU — big cluster (M4)</span>
+            <button class="reset-btn" onclick="resetCard('big')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Reset</button>
+        </div>
+        <div class="card surface">
+            <div class="option-row">
+                <div class="oi"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg></div>
+                <div class="option-meta"><div class="ot">Governor</div><div class="os">Big cluster scaling</div></div>
+                <select class="m3-select" data-node="gov-big" onchange="onGovernorChange(this)">
+                    <option value="schedutil" selected>schedutil</option>
+                    <option value="performance">performance</option>
+                    <option value="powersave">powersave</option>
+                    <option value="ondemand">ondemand</option>
+                    <option value="conservative">conservative</option>
+                    <option value="userspace">userspace</option>
+                </select>
+            </div>
+            <div class="slider-row">
+                <div class="slider-head"><span class="sl">Min frequency</span><span class="sv" data-out="big-min">455 MHz</span></div>
+                <input type="range" min="455" max="2730" step="52" value="455" data-freq="big-min" oninput="onFreq(this)">
+            </div>
+            <div class="slider-row">
+                <div class="slider-head"><span class="sl">Max frequency</span><span class="sv" data-out="big-max">2314 MHz</span></div>
+                <input type="range" min="455" max="2730" step="52" value="2314" data-freq="big-max" oninput="onFreq(this)">
+            </div>
+        </div>
+
+        <div class="section-head">
+            <span class="section-label">CPU — mid cluster (A75)</span>
+            <button class="reset-btn" onclick="resetCard('mid')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Reset</button>
+        </div>
+        <div class="card surface">
+            <div class="option-row">
+                <div class="oi"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg></div>
+                <div class="option-meta"><div class="ot">Governor</div><div class="os">Mid cluster scaling</div></div>
+                <select class="m3-select" data-node="gov-mid" onchange="onGovernorChange(this)">
+                    <option value="schedutil" selected>schedutil</option>
+                    <option value="performance">performance</option>
+                    <option value="powersave">powersave</option>
+                    <option value="ondemand">ondemand</option>
+                    <option value="conservative">conservative</option>
+                    <option value="userspace">userspace</option>
+                </select>
+            </div>
+            <div class="slider-row">
+                <div class="slider-head"><span class="sl">Min frequency</span><span class="sv" data-out="mid-min">377 MHz</span></div>
+                <input type="range" min="377" max="2314" step="52" value="377" data-freq="mid-min" oninput="onFreq(this)">
+            </div>
+            <div class="slider-row">
+                <div class="slider-head"><span class="sl">Max frequency</span><span class="sv" data-out="mid-max">2002 MHz</span></div>
+                <input type="range" min="377" max="2314" step="52" value="2002" data-freq="mid-max" oninput="onFreq(this)">
+            </div>
+        </div>
+
+        <div class="section-head">
+            <span class="section-label">CPU — little cluster (A55)</span>
+            <button class="reset-btn" onclick="resetCard('little')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Reset</button>
+        </div>
+        <div class="card surface">
+            <div class="option-row">
+                <div class="oi"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg></div>
+                <div class="option-meta"><div class="ot">Governor</div><div class="os">Little cluster scaling</div></div>
+                <select class="m3-select" data-node="gov-little" onchange="onGovernorChange(this)">
+                    <option value="schedutil" selected>schedutil</option>
+                    <option value="performance">performance</option>
+                    <option value="powersave">powersave</option>
+                    <option value="ondemand">ondemand</option>
+                    <option value="conservative">conservative</option>
+                    <option value="userspace">userspace</option>
+                </select>
+            </div>
+            <div class="slider-row">
+                <div class="slider-head"><span class="sl">Min frequency</span><span class="sv" data-out="little-min">299 MHz</span></div>
+                <input type="range" min="299" max="1794" step="52" value="299" data-freq="little-min" oninput="onFreq(this)">
+            </div>
+            <div class="slider-row">
+                <div class="slider-head"><span class="sl">Max frequency</span><span class="sv" data-out="little-max">1794 MHz</span></div>
+                <input type="range" min="299" max="1794" step="52" value="1794" data-freq="little-max" oninput="onFreq(this)">
+            </div>
+        </div>
+
+        <div class="section-head">
+            <span class="section-label">GPU — Mali-G76 MP12</span>
+            <button class="reset-btn" onclick="resetCard('gpu')"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>Reset</button>
+        </div>
+        <div class="card surface">
+            <div class="option-row">
+                <div class="oi"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/></svg></div>
+                <div class="option-meta"><div class="ot">Governor</div><div class="os">Mali devfreq</div></div>
+                <select class="m3-select" data-node="gov-gpu" onchange="onGovernorChange(this)">
+                    <option value="simple_ondemand" selected>simple_ondemand</option>
+                    <option value="performance">performance</option>
+                    <option value="powersave">powersave</option>
+                    <option value="userspace">userspace</option>
+                </select>
+            </div>
+            <div class="slider-row">
+                <div class="slider-head"><span class="sl">Min clock</span><span class="sv" data-out="gpu-min">377 MHz</span></div>
+                <input type="range" min="377" max="897" step="26" value="377" data-freq="gpu-min" oninput="onFreq(this)">
+            </div>
+            <div class="slider-row">
+                <div class="slider-head"><span class="sl">Max clock</span><span class="sv" data-out="gpu-max">702 MHz</span></div>
+                <input type="range" min="377" max="897" step="26" value="702" data-freq="gpu-max" oninput="onFreq(this)">
+            </div>
+            <div class="option-row">
+                <div class="oi"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/><circle cx="12" cy="12" r="4"/></svg></div>
+                <div class="option-meta"><div class="ot">Power policy</div><div class="os">Mali power management</div></div>
+                <select class="m3-select" data-gpuextra="gpu-power-policy" onchange="onGpuExtra(this)">
+                    <option>—</option>
+                </select>
+            </div>
+            <div class="slider-row" id="hsload-row" style="display:none;">
+                <div class="slider-head"><span class="sl">Highspeed load</span><span class="sv" data-out="gpu-highspeed-load">—</span></div>
+                <input type="range" min="0" max="100" step="1" value="80" data-hsload="1" oninput="onHsLoad(this)">
+            </div>
+        </div>
+
+        <div class="section-label">I/O &amp; memory</div>
+        <div class="card surface">
+            <div class="option-row">
+                <div class="oi"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg></div>
+                <div class="option-meta"><div class="ot">I/O scheduler</div><div class="os">Internal storage queue</div></div>
+                <select class="m3-select" data-sched="io-sched" onchange="onSchedulerChange(this)">
+                    <option value="mq-deadline" selected>mq-deadline</option>
+                    <option value="kyber">kyber</option>
+                    <option value="bfq">bfq</option>
+                    <option value="none">none</option>
+                </select>
+            </div>
+            <div class="slider-row">
+                <div class="slider-head"><span class="sl">Swappiness</span><span class="sv" data-out="swappiness">100</span></div>
+                <input type="range" min="0" max="200" step="5" value="100" data-swap="1" oninput="onSwap(this)">
+            </div>
+        </div>
+
+        <div class="section-head">
+            <span class="section-label" style="color:var(--m3-error);">Voltage margins</span>
+        </div>
+        <div class="vmargin-warn">
+            Undervolt/overvolt per power rail. Not part of any profile — manual only.
+            Aggressive negative values can cause instability, random reboots, or hangs.
+            Change one rail at a time.
+        </div>
+        <div class="card surface">
+            <div class="option-row">
+                <div class="oi"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></div>
+                <div class="option-meta"><div class="ot">Rail</div><div class="os" id="vmargin-rail-desc">Select a power rail</div></div>
+                <select class="m3-select" id="vmargin-rail-select" onchange="onVmarginRailChange(this)">
+                    <option value="">— not available —</option>
+                </select>
+            </div>
+            <div class="slider-row" id="vmargin-control-row" style="display:none;">
+                <div class="slider-head">
+                    <span class="sl">Margin</span>
+                    <span class="sv">
+                        <input type="number" id="vmargin-numbox" min="-25" max="25" step="1" value="0"
+                               class="vmargin-numbox" onchange="onVmarginNumberChange(this)">
+                        <span>%</span>
+                    </span>
+                </div>
+                <input type="range" id="vmargin-slider" min="-25" max="25" step="1" value="0"
+                       oninput="onVmarginSliderChange(this)">
+                <div class="vmargin-scale"><span>-25</span><span>0</span><span>+25</span></div>
+            </div>
+            <div class="vmargin-actions" id="vmargin-actions" style="display:none;">
+                <button class="reset-btn" onclick="restoreVmarginDefault()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+                    Restore rail
+                </button>
+                <button class="hdr-apply" id="vmargin-apply-btn" onclick="applyVmargin()" disabled>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                    <span id="vmargin-apply-txt">Saved</span>
+                </button>
+            </div>
+            <div class="option-row" style="border-top:1px solid var(--m3-outline);">
+                <div class="oi"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></div>
+                <div class="option-meta"><div class="ot">Restore all defaults</div><div class="os">Resets every rail to 0%</div></div>
+                <button class="reset-btn reset-all" onclick="restoreAllVmargins()">Restore all</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ INFO ============ -->
+    <section class="tab" data-tab="info">
+        <div class="section-label">Device</div>
+        <div class="card surface">
+            <div class="kv-row"><span class="k">Codename</span><span class="v">beyond2lte</span></div>
+            <div class="kv-row"><span class="k">SoC</span><span class="v">Exynos 9820</span></div>
+            <div class="kv-row"><span class="k">Clusters</span><span class="v">M4 + A75 + A55</span></div>
+            <div class="kv-row"><span class="k">GPU</span><span class="v">Mali-G76 MP12</span></div>
+        </div>
+        <div class="section-label" id="ver-section-label" style="display:none;">Software</div>
+        <div class="card surface" id="ver-card" style="display:none;">
+            <div class="kv-row kv-wrap" id="ver-row-kernel" style="display:none;"><span class="k">Kernel version</span><span class="v" id="info-kernelver">—</span></div>
+            <div class="kv-row kv-wrap" id="ver-row-ksu" style="display:none;"><span class="k">KernelSU version</span><span class="v" id="info-ksuver">—</span></div>
+            <div class="kv-row kv-wrap" id="ver-row-susfs" style="display:none;"><span class="k">SUSFS version</span><span class="v" id="info-susfsver">—</span></div>
+        </div>
+        <div class="section-label">Status</div>
+        <div class="card surface">
+            <div class="kv-row"><span class="k">Last apply</span><span class="v status-ok" id="info-status">—</span></div>
+            <div class="kv-row"><span class="k">Boot sentinel</span><span class="v status-ok" id="info-sentinel">—</span></div>
+            <div class="kv-row"><span class="k">Safe mode</span><span class="v status-ok" id="info-safemode">—</span></div>
+            <div class="kv-row"><span class="k">Hardware probe</span><span class="v status-ok" id="info-probe">—</span></div>
+        </div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section class="tab" data-tab="settings">
+        <div class="section-label">Appearance</div>
+        <div class="card surface">
+            <div class="option-row">
+                <div class="oi"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></div>
+                <div class="option-meta"><div class="ot">Light mode</div><div class="os">Flip surfaces to light</div></div>
+                <div class="switch" id="light-switch" onclick="toggleTheme()"><div class="knob"></div></div>
+            </div>
+        </div>
+        <div class="section-label">Theme</div>
+        <div class="card surface">
+            <div class="wallpaper-grid">
+                <div class="wp-opt wp-titanium sel" onclick="setWallpaper('wp-titanium',this)"><span>Titanium</span></div>
+                <div class="wp-opt wp-carbon" onclick="setWallpaper('wp-carbon',this)"><span>Carbon</span></div>
+                <div class="wp-opt wp-oxide" onclick="setWallpaper('wp-oxide',this)"><span>Oxide</span></div>
+                <div class="wp-opt wp-cobalt" onclick="setWallpaper('wp-cobalt',this)"><span>Cobalt</span></div>
+                <div class="wp-opt wp-avionics" onclick="setWallpaper('wp-avionics',this)"><span>Avionics</span></div>
+                <div class="wp-opt wp-tungsten" onclick="setWallpaper('wp-tungsten',this)"><span>Tungsten</span></div>
+            </div>
+        </div>
+        <div class="section-label">Security</div>
+        <div class="card surface">
+            <div class="option-row">
+                <div class="oi"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg></div>
+                <div class="option-meta"><div class="ot">Require PIN</div><div class="os">Gate the UI on open</div></div>
+                <div class="switch" id="sw-password" onclick="togglePassword()"><div class="knob"></div></div>
+            </div>
+        </div>
+
+        <div class="section-label">Backup</div>
+        <div class="card surface">
+            <div class="option-row" onclick="exportConfig()" style="cursor:pointer;">
+                <div class="oi"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></div>
+                <div class="option-meta"><div class="ot">Export config</div><div class="os">Saves to Download folder</div></div>
+                <span class="option-val">&#8250;</span>
+            </div>
+            <div class="option-row" onclick="document.getElementById('import-file-input').click()" style="cursor:pointer;">
+                <div class="oi"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9M7 14l5-5 5 5"/><path d="M5 3h14"/></svg></div>
+                <div class="option-meta"><div class="ot">Import config</div><div class="os">Load a saved tuning file</div></div>
+                <span class="option-val">&#8250;</span>
+            </div>
+            <input type="file" id="import-file-input" accept=".conf,.txt,text/plain,*/*" style="display:none;" onchange="importConfigFile(this)">
+        </div>
+    </section>
+
+</div>
+
+<div class="bottomzone">
+    <nav class="navbar">
+        <button class="navitem active" data-target="home" onclick="switchTab(this)">
+            <span class="ind"></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+            <span>Home</span>
+        </button>
+        <button class="navitem" data-target="advanced" onclick="switchTab(this)">
+            <span class="ind"></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11M4 12h7M4 18h13"/><circle cx="18" cy="6" r="2"/><circle cx="14" cy="12" r="2"/><circle cx="20" cy="18" r="2"/></svg>
+            <span>Advanced</span>
+        </button>
+        <button class="navitem" data-target="info" onclick="switchTab(this)">
+            <span class="ind"></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+            <span>Info</span>
+        </button>
+        <button class="navitem" data-target="settings" onclick="switchTab(this)">
+            <span class="ind"></span>
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1l-.3-2.5h-4l-.3 2.5a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5a7 7 0 0 0 .1-1z"/></svg>
+            <span>Settings</span>
+        </button>
+    </nav>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ===================================================================
+   ENGINE BRIDGE
+   The boundary between this (untrusted) UI and the privileged shell.
+   All sysfs access goes through here via KernelSU's exec API. The UI
+   only ever ships key=value config text and parses probe output — it
+   never validates or writes sysfs itself. apply.sh is the sole authority.
+
+   Falls back to a mock when `ksu` isn't present, so this same file opens
+   and previews in a plain browser.
+   =================================================================== */
+const MODDIR = '/data/adb/modules/exynos9820_tune';
+const STATE_DIR = '/data/adb/exynos9820_tune';
+const CONFIG_PATH = STATE_DIR + '/config.conf';
+const VMARGIN_PATH = STATE_DIR + '/vmargin.conf';   // standalone — never merged with config.conf
+
+const KSU = (() => {
+    // KernelSU / KernelSU-Next inject a WebView Java interface as `window.ksu`
+    // with the signature:  ksu.exec(command, optionsJSON, callbackFuncName)
+    // The WebView then calls  window[callbackFuncName](errno, stdout, stderr).
+    // The official npm `kernelsu` package is just a wrapper around exactly this.
+    // We implement that protocol directly so we don't depend on the module being
+    // importable, and we normalize to:  async exec(cmd) -> {errno,stdout,stderr}.
+    const iface = (typeof window !== 'undefined' && window.ksu
+                   && typeof window.ksu.exec === 'function') ? window.ksu : null;
+    const live = !!iface;
+
+    function execViaCallback(cmd){
+        return new Promise((resolve) => {
+            // unique callback name the WebView will invoke
+            const cb = 'ksucb_' + Date.now() + '_' + Math.floor(Math.random()*1e6);
+            let done = false;
+            window[cb] = (errno, stdout, stderr) => {
+                if (done) return; done = true;
+                try { delete window[cb]; } catch(_) { window[cb] = undefined; }
+                resolve({ errno: Number(errno) || 0,
+                          stdout: (stdout != null ? String(stdout) : ''),
+                          stderr: (stderr != null ? String(stderr) : '') });
+            };
+            try {
+                // options must be a JSON *string* per the interface contract.
+                iface.exec(cmd, JSON.stringify({}), cb);
+            } catch(e){
+                if (!done){ done = true; try{delete window[cb];}catch(_){}
+                    resolve({ errno:1, stdout:'', stderr:'exec threw: '+e }); }
+            }
+            // Guard against a callback that never fires.
+            setTimeout(() => {
+                if (!done){ done = true; try{delete window[cb];}catch(_){}
+                    resolve({ errno:1, stdout:'', stderr:'exec timeout' }); }
+            }, 8000);
+        });
+    }
+
+    return {
+        get live(){ return live; },
+        ready: () => Promise.resolve(live),
+        async exec(cmd){
+            if (!live) return MOCK.exec(cmd);
+            return execViaCallback(cmd);
+        }
+    };
+})();
+
+/* ---- Mock engine for browser preview (never runs on-device) ---- */
+const MOCK = {
+    _probe: `codename=beyond2lte
+node.little.path=/sys/devices/system/cpu/cpufreq/policy0
+node.little.govs=conservative ondemand userspace powersave performance schedutil blu_schedutil
+node.little.gov=schedutil
+node.little.freqs=442 546 650 806 949 1053 1157 1300 1456 1586 1742 1846 1950
+node.little.min=442
+node.little.max=1950
+node.mid.path=/sys/devices/system/cpu/cpufreq/policy4
+node.mid.govs=conservative ondemand userspace powersave performance schedutil blu_schedutil
+node.mid.gov=schedutil
+node.mid.freqs=507 650 754 845 962 1066 1222 1404 1508 1586 1690 1794 1898 2002 2106 2210 2314
+node.mid.min=507
+node.mid.max=2314
+node.big.path=/sys/devices/system/cpu/cpufreq/policy6
+node.big.govs=conservative ondemand userspace powersave performance schedutil blu_schedutil
+node.big.gov=schedutil
+node.big.freqs=520 624 728 819 936 1040 1144 1248 1378 1456 1560 1664 1820 1976 2080 2236 2340 2470 2530 2600 2730
+node.big.min=520
+node.big.max=2730
+node.gpu.path=/sys/devices/platform/18500000.mali
+node.gpu.freqs=156 200 260 325 377 433 572 650 702
+node.gpu.min=156
+node.gpu.max=702
+node.gpu.minfile=dvfs_min_lock
+node.gpu.maxfile=dvfs_max_lock
+sched.avail=noop deadline cfq fiops sio anxiety maple zen
+sched.cur=cfq
+thermal.BIG=/sys/class/thermal/thermal_zone0
+thermal.G3D=/sys/class/thermal/thermal_zone1
+vm.swappiness=160
+vmargin.lit=-10
+vmargin.mid=-10
+vmargin.big=-13
+vmargin.g3d=-13
+vmargin.mif=-10
+vmargin.mfc=-10
+vmargin.npu=-10
+vmargin.aud=-10
+vmargin.cam=-10
+vmargin.cp=-10
+vmargin.disp=-10
+vmargin.int=-10
+vmargin.intcam=-10
+vmargin.iva=-10
+vmargin.score=-10
+ver.kernel=4.14.356-FrEeRuNnErKeRnEl-v3.8+
+ver.kernelsu=ksud 3.3.0 (uapi: 2)
+ver.susfs=v1.5.7`,
+    exec(cmd) {
+        if (cmd.includes('probe.sh')) return { errno:0, stdout:this._probe, stderr:'' };
+        if (cmd.includes('cat') && cmd.includes('/status'))
+            return { errno:0, stdout:'healthy', stderr:'' };
+        if (cmd.includes('meminfo')){
+            // Mirror the REAL batched shell command's output shape:
+            // "<meminfo lines>|<battery %>|<health>"
+            return { errno:0, stdout:
+                'MemTotal:        5836000 kB\nMemAvailable:    2100000 kB\n|93\n|Good\n', stderr:'' };
+        }
+        // Combined multi-`cat` commands (freqs/temps joined with '; echo "|";').
+        // Split and answer each sub-command so preview matches the real shape.
+        if (cmd.includes('scaling_cur_freq') || cmd.includes('cur_freq') || cmd.includes('/temp')){
+            const subcmds = cmd.split(/;\s*echo\s*"\|"\s*;?/).map(s => s.trim()).filter(Boolean);
+            const parts = subcmds.map(sc => sc.includes('/temp')
+                ? String(Math.floor(35000 + Math.random()*10000))
+                : String(Math.floor(1400 + Math.random()*900) * 1000));
+            return { errno:0, stdout: parts.join('|'), stderr:'' };
+        }
+        return { errno:0, stdout:'', stderr:'' };  // writes/apply succeed silently
+    }
+};
+
+/* Parse probe key=value output into a nested map. */
+function parseProbe(text){
+    const p = { nodes:{}, sched:{}, thermal:{}, vm:{}, codename:'' };
+    text.split('\n').forEach(line => {
+        const i = line.indexOf('=');
+        if (i < 0) return;
+        const k = line.slice(0,i), v = line.slice(i+1);
+        if (k === 'codename') p.codename = v;
+        else if (k.startsWith('node.')){
+            const parts = k.split('.');
+            const node = parts[1], field = parts.slice(2).join('.');
+            if (node === 'gpu' && (field==='power_policy'||field==='highspeed_clock'||field==='highspeed_load')){
+                p.gpuextra = p.gpuextra || {};
+                p.gpuextra[field] = v;
+            } else {
+                (p.nodes[node] = p.nodes[node] || {})[field] = v;
+            }
+        }
+        else if (k.startsWith('sched.')) p.sched[k.slice(6)] = v;
+        else if (k.startsWith('thermal.')) p.thermal[k.slice(8)] = v;
+        else if (k.startsWith('vm.')) p.vm[k.slice(3)] = v;
+        else if (k.startsWith('vmargin.')){ p.vmargin = p.vmargin || {}; p.vmargin[k.slice(8)] = v; }
+        else if (k.startsWith('ver.')){ p.ver = p.ver || {}; p.ver[k.slice(4)] = v; }
+    });
+    return p;
+}
+
+let PROBE = null;   // populated at boot from the real probe
+const NODE_FREQS = {};  // node -> [real freqs MHz]; sliders index into these
+let SCHED_DEFAULT = ''; // I/O scheduler reset target (stock if available)
+const STOCK = { cpugov:{}, gpugov:'', sched:'' };  // kernel stock, from post-fs-data
+
+// Read the stock baseline captured on a clean boot (before any tuning).
+// Maps policy names to our node ids so reset can restore true kernel defaults.
+async function loadStockDefaults(){
+    const r = await KSU.exec(`cat ${STATE_DIR}/stock_defaults.conf 2>/dev/null`);
+    if (r.errno !== 0 || !r.stdout) return;
+    r.stdout.split('\n').forEach(line => {
+        const i = line.indexOf('='); if (i < 0) return;
+        const k = line.slice(0,i).trim(), v = line.slice(i+1).trim();
+        if (k.startsWith('cpugov.')) STOCK.cpugov[k.slice(7)] = v;   // cpugov.policy6=...
+        else if (k === 'gpugov') STOCK.gpugov = v;
+        else if (k === 'sched') STOCK.sched = v;
+    });
+    // Map policy path -> node id using PROBE (which knows each node's path).
+    if (PROBE){
+        ['big','mid','little'].forEach(node => {
+            const p = PROBE.nodes[node] && PROBE.nodes[node].path;   // .../policyN
+            if (!p) return;
+            const pn = p.split('/').pop();                           // policyN
+            if (STOCK.cpugov[pn]){
+                if (!DEFAULTS[node]) DEFAULTS[node] = {};
+                DEFAULTS[node][`gov-${node}`] = STOCK.cpugov[pn];    // stock gov as reset target
+            }
+        });
+        if (STOCK.gpugov && DEFAULTS.gpu) DEFAULTS.gpu['gov-gpu'] = STOCK.gpugov;
+    }
+    if (STOCK.sched) SCHED_DEFAULT = STOCK.sched;
+}
+
+// Set a freq slider (which holds an index) to show a given real frequency.
+function setSliderToFreq(key, freq){
+    const inp = document.querySelector(`input[data-freq="${key}"]`);
+    if (!inp) return;
+    const node = key.split(/-(min|max)$/)[0];
+    const arr = NODE_FREQS[node] || [];
+    let idx = arr.indexOf(Number(freq));
+    if (idx < 0){
+        // nearest supported freq if exact not found
+        idx = 0; let best = Infinity;
+        arr.forEach((f,i) => { const d = Math.abs(f - Number(freq)); if (d < best){ best = d; idx = i; } });
+    }
+    inp.value = idx;
+    const out = document.querySelector(`[data-out="${key}"]`);
+    if (out && arr.length) out.textContent = arr[idx] + ' MHz';
+}
+
+/* ===================================================================
+   STAGED-CHANGE MODEL
+   Every control edits `staged`. `snapshot` is the last-applied state.
+   dirty = any key differs.
+   =================================================================== */
+const state = {
+    profile: 'balanced',
+    staged: {},      // current control values
+    snapshot: {},    // last applied
+};
+
+/* Kernel-default values per control. Populated from probe at boot; these
+   literals are only a fallback for browser preview. Grouped by card so
+   resetCard() can restore one card at a time. */
+const DEFAULTS = {
+    big:    { 'gov-big':'schedutil',    'big-min':'455',    'big-max':'2730' },
+    mid:    { 'gov-mid':'schedutil',    'mid-min':'377',    'mid-max':'2314' },
+    little: { 'gov-little':'schedutil', 'little-min':'299', 'little-max':'1794' },
+    gpu:    { 'gov-gpu':'simple_ondemand','gpu-min':'377',  'gpu-max':'897' },
+};
+
+// Restore one card's controls to kernel defaults, then re-diff.
+function resetCard(card){
+    const d = DEFAULTS[card];
+    if (!d) return;
+    for (const k in d){
+        const sel = document.querySelector(`select[data-node="${k}"]`);
+        if (sel){ sel.value = d[k]; continue; }
+        if (document.querySelector(`input[data-freq="${k}"]`)) setSliderToFreq(k, d[k]);
+    }
+    refreshDirty();
+    const names = { big:'Big cluster', mid:'Mid cluster', little:'Little cluster', gpu:'GPU' };
+    toast(`${names[card]} reset to defaults`);
+}
+
+// Restore every tuning control to defaults.
+function resetAll(){
+    for (const card in DEFAULTS) {
+        const d = DEFAULTS[card];
+        for (const k in d){
+            const sel = document.querySelector(`select[data-node="${k}"]`);
+            if (sel){ sel.value = d[k]; continue; }
+            if (document.querySelector(`input[data-freq="${k}"]`)) setSliderToFreq(k, d[k]);
+        }
+    }
+    // I/O scheduler back to its probed default (wasn't in DEFAULTS, which is
+    // why it never reset before).
+    const sc = document.querySelector('select[data-sched="io-sched"]');
+    if (sc && SCHED_DEFAULT){
+        // only set if that option exists
+        if ([...sc.options].some(o => o.value === SCHED_DEFAULT)) sc.value = SCHED_DEFAULT;
+    }
+    refreshDirty();
+    toast('All tuning reset to defaults');
+}
+
+function readControls(){
+    const o = {};
+    document.querySelectorAll('select[data-node]').forEach(s => {
+        if (s.disabled) return;
+        const v = s.value;
+        if (v === 'not available' || v === '' || v === 'not_available') return;
+        o[s.dataset.node] = v;
+    });
+    document.querySelectorAll('input[data-freq]').forEach(i => {
+        if (i.disabled) return;
+        // slider value is an INDEX into NODE_FREQS; store the real frequency.
+        const key = i.dataset.freq;                  // "big-min"
+        const node = key.split(/-(min|max)$/)[0];
+        const arr = NODE_FREQS[node];
+        if (arr && arr.length){
+            const idx = Math.max(0, Math.min(arr.length-1, parseInt(i.value,10)||0));
+            o[key] = String(arr[idx]);
+        }
+        // If NODE_FREQS isn't populated for this node, DON'T emit the key — the
+        // slider value is a bare index with no valid frequency mapping, and
+        // emitting it would stage a bogus value (this caused mass rejections).
+    });
+    document.querySelectorAll('select[data-sched]').forEach(s => {
+        if (!s.disabled) o[s.dataset.sched] = s.value;
+    });
+    // GPU extras
+    const pp = document.querySelector('select[data-gpuextra="gpu-power-policy"]');
+    if (pp && !pp.disabled && pp.value && pp.value !== '—') o['gpu-power-policy'] = pp.value;
+    const hs = document.querySelector('input[data-hsload]');
+    const hsRow = document.getElementById('hsload-row');
+    if (hs && hsRow && hsRow.style.display !== 'none') o['gpu-highspeed-load'] = hs.value;
+    const swap = document.querySelector('input[data-swap]');
+    if (swap) o['swappiness'] = swap.value;
+    o['__profile'] = state.profile;
+    return o;
+}
+function countDiffs(){
+    let n = 0;
+    for (const k in state.staged){
+        if (k === '__profile') continue;  // cosmetic label, not a real sysfs setting
+        if (state.staged[k] !== state.snapshot[k]) n++;
+    }
+    return n;
+}
+function refreshDirty(){
+    state.staged = readControls();
+    const n = countDiffs();
+    const ps = document.getElementById('profile-status');
+    const pst = document.getElementById('ps-text');
+
+    // Header Apply / Revert (permanent, always-visible)
+    const apply = document.getElementById('hdr-apply');
+    const applyTxt = document.getElementById('hdr-apply-txt');
+    const revert = document.getElementById('hdr-revert');
+    if (apply){
+        apply.classList.toggle('dirty', n > 0);
+        apply.disabled = n === 0;
+        applyTxt.textContent = n > 0 ? `Apply (${n})` : 'Saved';
+        revert.style.display = n > 0 ? '' : 'none';
+    }
+
+    ps.classList.toggle('dirty', n > 0);
+    // On narrow screens, hide the device pill when Apply/Revert are showing.
+    const pill = document.getElementById('device-pill');
+    if (pill) pill.style.display = (n > 0 && window.innerWidth < 420) ? 'none' : '';
+
+    // Reflect what the controls ACTUALLY match, not just the last profile the
+    // user tapped — so imports, manual edits, or a saved config that happens to
+    // equal a profile all show the true state instead of a stale label.
+    const matched = detectMatchingProfile();
+    if (matched){
+        state.profile = matched;
+        setProfile(matched);
+        const name = matched.charAt(0).toUpperCase() + matched.slice(1);
+        pst.textContent = n > 0 ? `${name} — modified` : `${name} profile active`;
+    } else {
+        document.querySelectorAll('.profile-opt').forEach(o => o.classList.remove('sel'));
+        pst.textContent = 'Custom — modified';
+    }
+}
+
+function onGovernorChange(sel){ refreshDirty(); }
+function onSchedulerChange(sel){ refreshDirty(); }
+function onGpuExtra(sel){ refreshDirty(); }
+function onSwap(input){
+    const out = document.querySelector('[data-out="swappiness"]');
+    if (out) out.textContent = input.value;
+    refreshDirty();
+}
+function onHsLoad(input){
+    const out = document.querySelector('[data-out="gpu-highspeed-load"]');
+    if (out) out.textContent = input.value + '%';
+    refreshDirty();
+}
+
+/* ===================================================================
+   VOLTAGE MARGINS — standalone, manual-only. Completely separate from
+   `state`/profiles/the main Apply button. Own config file (vmargin.conf),
+   own dirty/snapshot tracking, own per-rail Apply + Restore, plus a global
+   Restore All. Never read or written by applyProfile/resetAll/revertChanges.
+   ================================================================= */
+const VMARGIN_LABELS = {
+    lit:'Little cluster (A55)', mid:'Mid cluster (A75)', big:'Big cluster (M4)',
+    g3d:'GPU (Mali)', mif:'Memory interface', mfc:'Video codec (MFC)',
+    npu:'Neural processor', aud:'Audio', cam:'Camera', cp:'Modem (CP)',
+    disp:'Display', int:'Internal/interconnect', intcam:'Internal camera',
+    iva:'Image/video accelerator', score:'Sensor core'
+};
+const VM = { rails:{}, current:'', snapshot:{} };  // rails[rail] = probed value; snapshot = last-applied
+
+function populateVmargins(){
+    if (!PROBE || !PROBE.vmargin) return;
+    VM.rails = { ...PROBE.vmargin };
+    VM.snapshot = { ...PROBE.vmargin };
+    const sel = document.getElementById('vmargin-rail-select');
+    if (!sel) return;
+    const known = Object.keys(VMARGIN_LABELS).filter(r => VM.rails[r] !== undefined);
+    if (!known.length){
+        sel.innerHTML = '<option value="">— not available —</option>';
+        document.getElementById('vmargin-control-row').style.display = 'none';
+        document.getElementById('vmargin-actions').style.display = 'none';
+        return;
+    }
+    sel.innerHTML = known.map(r => `<option value="${r}">${VMARGIN_LABELS[r]} (${r})</option>`).join('');
+    sel.value = known[0];
+    onVmarginRailChange(sel);
+}
+
+function onVmarginRailChange(sel){
+    const rail = sel.value;
+    VM.current = rail;
+    const row = document.getElementById('vmargin-control-row');
+    const actions = document.getElementById('vmargin-actions');
+    const desc = document.getElementById('vmargin-rail-desc');
+    if (!rail){ row.style.display='none'; actions.style.display='none'; return; }
+    const v = Number(VM.rails[rail] ?? 0);
+    document.getElementById('vmargin-slider').value = v;
+    document.getElementById('vmargin-numbox').value = v;
+    desc.textContent = VMARGIN_LABELS[rail] + ' — current: ' + v + '%';
+    row.style.display = ''; actions.style.display = '';
+    refreshVmarginDirty();
+}
+function onVmarginSliderChange(input){
+    const v = clampVmargin(input.value);
+    input.value = v;
+    document.getElementById('vmargin-numbox').value = v;
+    VM.rails[VM.current] = v;
+    refreshVmarginDirty();
+}
+function onVmarginNumberChange(input){
+    const v = clampVmargin(input.value);
+    input.value = v;
+    document.getElementById('vmargin-slider').value = v;
+    VM.rails[VM.current] = v;
+    refreshVmarginDirty();
+}
+function clampVmargin(v){
+    v = Math.round(Number(v) || 0);
+    return Math.max(-25, Math.min(25, v));
+}
+function refreshVmarginDirty(){
+    const btn = document.getElementById('vmargin-apply-btn');
+    const txt = document.getElementById('vmargin-apply-txt');
+    if (!btn || !VM.current) return;
+    const dirty = Number(VM.rails[VM.current]) !== Number(VM.snapshot[VM.current] ?? 0);
+    btn.disabled = !dirty;
+    btn.classList.toggle('dirty', dirty);
+    txt.textContent = dirty ? 'Apply' : 'Saved';
+}
+
+// Apply ONLY the currently-selected rail. Writes a config containing just
+// this one rail's value — never bundles other rails, matching "change one
+// rail at a time" from the design brief.
+async function applyVmargin(){
+    if (!VM.current) return;
+    const rail = VM.current, val = Number(VM.rails[rail]);
+    const cfg = `vmargin-${rail}=${val}\n`;
+    const b64 = btoa(unescape(encodeURIComponent(cfg)));
+    await KSU.exec(`echo "$(date '+%H:%M:%S') webui: applying vmargin ${rail}=${val}" >> ${STATE_DIR}/guard.log 2>/dev/null`);
+    // Merge into the persistent vmargin.conf (read existing, replace this rail,
+    // rewrite) so all previously-applied rails stay in the boot-time config.
+    const existing = await KSU.exec(`cat ${VMARGIN_PATH} 2>/dev/null`);
+    const lines = {};
+    if (existing.errno === 0 && existing.stdout){
+        existing.stdout.split('\n').forEach(l => {
+            const i = l.indexOf('='); if (i<0) return;
+            lines[l.slice(0,i).trim()] = l.slice(i+1).trim();
+        });
+    }
+    lines[`vmargin-${rail}`] = String(val);
+    const fullCfg = Object.entries(lines).map(([k,v])=>`${k}=${v}`).join('\n') + '\n';
+    const fullB64 = btoa(unescape(encodeURIComponent(fullCfg)));
+    await KSU.exec(`echo '${fullB64}' | base64 -d > "${VMARGIN_PATH}"`);
+
+    const res = await KSU.exec(`LOG=${STATE_DIR}/guard.log sh ${MODDIR}/scripts/apply.sh ${VMARGIN_PATH} 2>&1`);
+    await KSU.exec(`echo "$(date '+%H:%M:%S') webui: vmargin apply.sh rc=${res.errno}" >> ${STATE_DIR}/guard.log 2>/dev/null`);
+    const refused = (res.stdout||'').split('\n').some(l => l.startsWith('REFUSE') && l.includes(rail));
+    if (refused){
+        toast(`Rejected: ${rail} value invalid`); return;
+    }
+    VM.snapshot[rail] = val;
+    refreshVmarginDirty();
+    toast(`${VMARGIN_LABELS[rail]} set to ${val}%`);
+}
+
+// Restore just the selected rail to 0% (stock — no margin adjustment).
+function restoreVmarginDefault(){
+    if (!VM.current) return;
+    const slider = document.getElementById('vmargin-slider');
+    const num = document.getElementById('vmargin-numbox');
+    slider.value = 0; num.value = 0;
+    VM.rails[VM.current] = 0;
+    document.getElementById('vmargin-rail-desc').textContent = VMARGIN_LABELS[VM.current] + ' — current: 0%';
+    refreshVmarginDirty();
+    toast('Reset to 0% — tap Apply to write');
+}
+
+// Restore ALL rails to 0% and apply immediately (emergency-out button).
+async function restoreAllVmargins(){
+    const rails = Object.keys(VM.snapshot);
+    if (!rails.length) return;
+    const cfg = rails.map(r => `vmargin-${r}=0`).join('\n') + '\n';
+    const b64 = btoa(unescape(encodeURIComponent(cfg)));
+    await KSU.exec(`echo "$(date '+%H:%M:%S') webui: restoring ALL voltage margins to 0" >> ${STATE_DIR}/guard.log 2>/dev/null`);
+    await KSU.exec(`echo '${b64}' | base64 -d > "${VMARGIN_PATH}"`);
+    const res = await KSU.exec(`LOG=${STATE_DIR}/guard.log sh ${MODDIR}/scripts/apply.sh ${VMARGIN_PATH} 2>&1`);
+    rails.forEach(r => { VM.rails[r] = 0; VM.snapshot[r] = 0; });
+    if (VM.current){
+        document.getElementById('vmargin-slider').value = 0;
+        document.getElementById('vmargin-numbox').value = 0;
+        document.getElementById('vmargin-rail-desc').textContent = VMARGIN_LABELS[VM.current] + ' — current: 0%';
+        refreshVmarginDirty();
+    }
+    toast(`All voltage margins restored to 0% (rc=${res.errno})`);
+}
+
+// Freq sliders operate on INDICES into NODE_FREQS. Clamp min<=max by index
+// (order-preserving), display the real frequency, mark dirty.
+function onFreq(input){
+    const key = input.dataset.freq;                 // "big-min"
+    const [node, bound] = key.split(/-(min|max)$/);
+    const arr = NODE_FREQS[node] || [];
+    const partner = document.querySelector(
+        `input[data-freq="${node}-${bound === 'min' ? 'max' : 'min'}"]`);
+    let idx = parseInt(input.value, 10) || 0;
+    if (partner){
+        const pIdx = parseInt(partner.value, 10) || 0;
+        if (bound === 'min' && idx > pIdx){ idx = pIdx; input.value = idx; }
+        if (bound === 'max' && idx < pIdx){ idx = pIdx; input.value = idx; }
+    }
+    const freq = arr.length ? arr[Math.max(0,Math.min(arr.length-1,idx))] : idx;
+    const out = document.querySelector(`[data-out="${key}"]`);
+    if (out) out.textContent = freq + ' MHz';
+    refreshDirty();
+}
+
+async function applyChanges(){
+    const n = countDiffs();
+    if (n === 0) return;
+    // Safety: never write a config if probe never populated — that produced
+    // garbage configs (indices-as-freqs, "not available" placeholders) that
+    // apply.sh then rejected wholesale.
+    if (!PROBE || Object.keys(PROBE.nodes).length === 0){
+        toast('Hardware not detected — cannot apply'); return;
+    }
+
+    // Build config from staged sysfs keys only. Skip UI prefs, and skip any
+    // control that is disabled or holds a placeholder / non-real value.
+    const skip = new Set(['__profile','theme','wallpaper','profile']);
+    const PLACEHOLDERS = new Set(['not available','','—','not_available']);
+    const validFreqs = {};   // node -> Set of real freqs (strings)
+    ['big','mid','little','gpu'].forEach(n => {
+        const arr = NODE_FREQS[n] || [];
+        validFreqs[n] = new Set(arr.map(String));
+    });
+
+    const lines = [];
+    for (const k in state.staged){
+        if (skip.has(k)) continue;
+        const v = String(state.staged[k]).trim();
+        if (PLACEHOLDERS.has(v)) continue;                 // drop placeholders
+        // governor keys: only if the control isn't disabled and value is real
+        if (k.startsWith('gov-')){
+            const sel = document.querySelector(`select[data-node="${k}"]`);
+            if (!sel || sel.disabled) continue;
+            lines.push(`${k}=${v}`);
+            continue;
+        }
+        // freq keys: value MUST be a real OPP for that node
+        const fm = k.match(/^(big|mid|little|gpu)-(min|max)$/);
+        if (fm){
+            const node = fm[1];
+            const inp = document.querySelector(`input[data-freq="${k}"]`);
+            if (!inp || inp.disabled) continue;
+            if (!validFreqs[node] || !validFreqs[node].has(v)) continue;  // not a real freq
+            lines.push(`${k}=${v}`);
+            continue;
+        }
+        // scheduler / swappiness: pass through if non-empty
+        if (k === 'io-sched'){
+            const sel = document.querySelector(`select[data-sched="io-sched"]`);
+            if (!sel || sel.disabled) continue;
+            lines.push(`${k}=${v}`);
+            continue;
+        }
+        lines.push(`${k}=${v}`);
+    }
+    if (lines.length === 0){ toast('No valid changes to apply'); return; }
+    const cfg = lines.join('\n') + '\n';
+
+    // Write config, then invoke apply.sh (the sole validated write path).
+    // Heredoc keeps the config as data; apply.sh parses it, never sources it.
+    const applyBtn = document.getElementById('hdr-apply');
+    if (applyBtn) applyBtn.style.opacity = '0.6';
+    const write = await KSU.exec(
+        `mkdir -p ${STATE_DIR}; cat > ${CONFIG_PATH} <<'EOF__CFG'\n${cfg}EOF__CFG`);
+    if (write.errno !== 0){
+        if (applyBtn) applyBtn.style.opacity = '';
+        toast('Could not write config'); return;
+    }
+    const LOGF = `${STATE_DIR}/guard.log`;
+    await KSU.exec(`echo "$(date '+%H:%M:%S') webui: applying" >> ${LOGF} 2>/dev/null`);
+    const res = await KSU.exec(`LOG=${LOGF} sh ${MODDIR}/scripts/apply.sh ${CONFIG_PATH} 2>&1`);
+    if (applyBtn) applyBtn.style.opacity = '';
+
+    // apply.sh exits non-zero if any key was refused; surface that honestly.
+    const refused = (res.stdout || '').split('\n').filter(l => l.startsWith('REFUSE')).length;
+    state.snapshot = { ...state.staged };
+    refreshDirty();
+    if (res.errno !== 0 || refused > 0){
+        toast(`Applied ${n - refused}/${n} · ${refused} rejected`);
+    } else {
+        toast(`Applied · ${n} change${n === 1 ? '' : 's'} written`);
+    }
+    KSU.exec(`echo "$(date '+%H:%M:%S') webui: apply.sh rc=${res.errno}" >> ${LOGF} 2>/dev/null`);
+}
+function revertChanges(){
+    // Restore every control to the last-applied snapshot.
+    document.querySelectorAll('select[data-node],select[data-sched]').forEach(s => {
+        const k = s.dataset.node || s.dataset.sched;
+        if (state.snapshot[k] != null) s.value = state.snapshot[k];
+    });
+    document.querySelectorAll('input[data-freq]').forEach(i => {
+        const k = i.dataset.freq;
+        if (state.snapshot[k] != null) setSliderToFreq(k, state.snapshot[k]);
+    });
+    if (state.snapshot['__profile']) setProfile(state.snapshot['__profile']);
+    refreshDirty();
+    toast('Reverted to last applied');
+}
+
+/* ---------- Toast ---------- */
+let toastTimer = null;
+function toast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ---------- Live status poll (Home only, paused when hidden) ----------
+   Reads scaling_cur_freq (CPU) / cur_freq (GPU) / thermal zone temps via one
+   batched exec so the panel reflects the actual device. Falls back to a gentle
+   jitter in browser preview (mock exec returns synthetic values). */
+let pollTimer = null;
+async function pollLive(){
+    if (!document.querySelector('.tab[data-tab="home"]').classList.contains('active')) return;
+    if (!PROBE){ return; }
+    const N = PROBE.nodes;
+    // Build a single shell call that prints each value on its own line.
+    const parts = [];
+    const order = [];
+    if (N.big){    parts.push(`cat ${N.big.path}/scaling_cur_freq`);    order.push(['lv-big','khz']); }
+    if (N.mid){    parts.push(`cat ${N.mid.path}/scaling_cur_freq`);    order.push(['lv-mid','khz']); }
+    if (N.little){ parts.push(`cat ${N.little.path}/scaling_cur_freq`); order.push(['lv-little','khz']); }
+    if (N.gpu){    parts.push(`cat ${N.gpu.curfile || (N.gpu.path + '/cur_freq')}`); order.push(['lv-gpu','gpuclock']); }
+    // thermal: pick a big-cluster-ish zone and a gpu zone if present
+    const cpuZone = PROBE.thermal.BIG || PROBE.thermal.LITTLE || Object.values(PROBE.thermal)[0];
+    const gpuZone = PROBE.thermal.G3D || PROBE.thermal.GPU;
+    if (cpuZone){ parts.push(`cat ${cpuZone}/temp`); order.push(['ring-cputemp','temp']); }
+    if (gpuZone){ parts.push(`cat ${gpuZone}/temp`); order.push(['ring-gputemp','temp']); }
+
+    const res = await KSU.exec(parts.join('; echo "|"; ') + '; echo "|"');
+    const vals = (res.stdout || '').split('|').map(x => x.trim());
+    const sparkSample = {};   // node -> normalized 0-100 for this poll, for the chart
+    order.forEach(([id,unit], i) => {
+        const raw = parseInt(vals[i], 10);
+        if (isNaN(raw)) return;
+        let txt;
+        if (unit === 'khz') txt = Math.round(raw/1000) + ' MHz';
+        else if (unit === 'hz') txt = Math.round(raw/1000000) + ' MHz';
+        else if (unit === 'gpuclock'){
+            // Mali `clock` may report MHz, kHz, or Hz — normalize by magnitude.
+            let mhz = raw;
+            if (raw >= 100000000) mhz = Math.round(raw/1000000);
+            else if (raw >= 100000) mhz = Math.round(raw/1000);
+            txt = mhz + ' MHz';
+        }
+        if (unit === 'temp'){
+            const c = raw/1000;
+            setRing(id, c, 100, c.toFixed(0)+'\u00B0', tempColor(c));
+        } else {
+            setLive(id, txt);
+            // record normalized % of this node's max OPP for the sparkline
+            const node = id.replace('lv-','');
+            const arr = NODE_FREQS[node];
+            if (arr && arr.length){
+                const mhz = unit==='khz' ? raw/1000 : unit==='hz' ? raw/1e6
+                    : (raw>=1e8 ? raw/1e6 : raw>=1e5 ? raw/1e3 : raw);
+                sparkSample[node] = Math.max(0, Math.min(100, (mhz/arr[arr.length-1])*100));
+            }
+        }
+    });
+    recordSpark(sparkSample);
+
+    // RAM % + battery % + health — one more batched read.
+    const res2 = await KSU.exec(
+        `cat /proc/meminfo | grep -E '^(MemTotal|MemAvailable)'; echo "|"; ` +
+        `cat /sys/class/power_supply/battery/capacity 2>/dev/null; echo "|"; ` +
+        `cat /sys/class/power_supply/battery/health 2>/dev/null`
+    );
+    const [memBlock, battRaw, healthRaw] = (res2.stdout || '').split('|');
+    const total = parseInt((memBlock.match(/MemTotal:\s*(\d+)/)||[])[1], 10);
+    const avail = parseInt((memBlock.match(/MemAvailable:\s*(\d+)/)||[])[1], 10);
+    if (total > 0 && !isNaN(avail)){
+        const usedPct = Math.round(((total - avail) / total) * 100);
+        setRing('ring-ram', usedPct, 100, usedPct+'%', usedPct>85?'var(--m3-error)':'var(--m3-primary)');
+    }
+    const battPct = parseInt((battRaw||'').trim(), 10);
+    if (!isNaN(battPct)){
+        setRing('ring-batt', battPct, 100, battPct+'%', battPct<20?'var(--m3-error)':'var(--m3-primary)');
+    }
+    const health = (healthRaw||'').trim();
+    if (health) setLive('lv-batthealth', health);
+}
+
+/* Drive a ring: value/max fraction sets stroke-dashoffset (circumference 264
+   for r=42), center label text, and stroke color (supports a temp gradient). */
+function setRing(id, value, max, label, color){
+    const circle = document.getElementById(id);
+    const lbl = document.getElementById(id + '-val');
+    if (!circle) return;
+    const CIRC = 264;
+    const pct = Math.max(0, Math.min(1, value / max));
+    const offset = CIRC * (1 - pct);
+    circle.style.strokeDashoffset = offset;
+    circle.style.stroke = color;
+    if (lbl) lbl.textContent = label;
+}
+// Temp -> color: green under 45°, amber 45-60, red above (rough 9820 thresholds).
+function tempColor(c){
+    if (c >= 60) return 'var(--m3-error)';
+    if (c >= 45) return '#e0b84a';
+    return 'var(--m3-primary)';
+}
+/* ---------- Sparkline: rolling 20-sample history per node (~30s @ 1.5s poll) ----------
+   Each sample is normalized to 0-100% of that node's own max OPP, so all four
+   lines share one y-axis despite very different MHz ranges. */
+const SPARK_LEN = 20;
+const sparkHistory = { big:[], mid:[], little:[], gpu:[] };
+function recordSpark(sample){
+    let any = false;
+    for (const node in sparkHistory){
+        if (sample[node] != null){
+            sparkHistory[node].push(sample[node]);
+            if (sparkHistory[node].length > SPARK_LEN) sparkHistory[node].shift();
+            any = true;
+        }
+    }
+    if (any) drawSpark();
+}
+function drawSpark(){
+    const W = 300, H = 100, PAD = 6;
+    for (const node in sparkHistory){
+        const el = document.getElementById('spark-' + node);
+        const hist = sparkHistory[node];
+        if (!el || hist.length < 2) continue;
+        const stepX = (W) / (SPARK_LEN - 1);
+        const startIdx = SPARK_LEN - hist.length;
+        const pts = hist.map((v, i) => {
+            const x = (startIdx + i) * stepX;
+            const y = PAD + (1 - v/100) * (H - PAD*2);
+            return `${x.toFixed(1)},${y.toFixed(1)}`;
+        });
+        el.setAttribute('points', pts.join(' '));
+    }
+}
+
+function setLive(id, txt){
+    const el = document.getElementById(id);
+    if (!el || el.textContent === txt) return;
+    el.textContent = txt;
+    el.classList.remove('tick'); void el.offsetWidth; el.classList.add('tick');
+}
+function startPoll(){ stopPoll(); pollTimer = setInterval(pollLive, 1500); }
+function stopPoll(){ if (pollTimer) clearInterval(pollTimer); pollTimer = null; }
+document.addEventListener('visibilitychange', () => document.hidden ? stopPoll() : startPoll());
+
+function setProfile(p){
+    state.profile = p;
+    document.querySelectorAll('.profile-opt').forEach(o =>
+        o.classList.toggle('sel', o.dataset.profile === p));
+}
+
+const TAB_TITLES = { home:'Home', advanced:'Advanced', info:'Info', settings:'Settings' };
+
+function switchTab(el){
+    document.querySelectorAll('.navitem').forEach(n => n.classList.remove('active'));
+    el.classList.add('active');
+    const target = el.dataset.target;
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === target));
+    document.getElementById('tab-title').textContent = TAB_TITLES[target];
+    document.querySelector('.content').scrollTop = 0;
+    // Only poll while Home is visible.
+    if (target === 'home'){ pollLive(); startPoll(); } else { stopPoll(); }
+}
+
+/* ===================================================================
+   PREFS PERSISTENCE
+   theme / wallpaper / profile survive across sessions. Storage is
+   abstracted to one save/load pair: scaffold keeps an in-memory object;
+   live module swaps the bodies for ksu.exec() reads/writes of the config
+   file (key=value, parsed as data — never sourced). One-function swap.
+   =================================================================== */
+let _prefs = { theme:'dark', wallpaper:'wp-titanium', profile:'balanced' };
+const PREFS_PATH = STATE_DIR + '/prefs.conf';
+function savePrefs(){
+    // Persist as key=value data; validated on read. Fire-and-forget.
+    const txt = `theme=${_prefs.theme}\nwallpaper=${_prefs.wallpaper}\nprofile=${_prefs.profile}\n`;
+    KSU.exec(`mkdir -p ${STATE_DIR}; cat > ${PREFS_PATH} <<'EOF__P'\n${txt}EOF__P`);
+}
+async function loadPrefs(){
+    const r = await KSU.exec(`cat ${PREFS_PATH} 2>/dev/null`);
+    if (r.errno === 0 && r.stdout){
+        r.stdout.split('\n').forEach(line => {
+            const i = line.indexOf('='); if (i < 0) return;
+            const k = line.slice(0,i).trim(), v = line.slice(i+1).trim();
+            // Validate against known-good values only.
+            if (k === 'theme' && (v === 'dark' || v === 'light')) _prefs.theme = v;
+            if (k === 'wallpaper' && /^wp-[a-z]+$/.test(v)) _prefs.wallpaper = v;
+            if (k === 'profile' && ['battery','balanced','performance'].includes(v)) _prefs.profile = v;
+        });
+    }
+    return _prefs;
+}
+function applyPrefs(p){
+    // theme
+    const light = p.theme === 'light';
+    document.body.classList.toggle('theme-light', light);
+    document.getElementById('light-switch').classList.toggle('on', light);
+    applyThemeIcon(light);
+    // wallpaper
+    ['wp-titanium','wp-carbon','wp-oxide','wp-cobalt','wp-avionics','wp-tungsten']
+        .forEach(w => document.body.classList.remove(w));
+    document.body.classList.add(p.wallpaper);
+    document.querySelectorAll('.wp-opt').forEach(o =>
+        o.classList.toggle('sel', o.classList.contains(p.wallpaper)));
+    // profile
+    setProfile(p.profile);
+}
+
+// Pick a governor from a node's available list by preference order.
+function pickGov(node, prefs){
+    const avail = (PROBE.nodes[node] && (PROBE.nodes[node].govs||'')).split(/\s+/).filter(Boolean);
+    for (const p of prefs){ if (avail.includes(p)) return p; }
+    return avail[0] || '';
+}
+// Set a node's governor dropdown + min/max sliders from real freqs.
+function setNode(node, gov, minMhz, maxMhz){
+    const govSel = document.querySelector(`select[data-node="gov-${node}"]`);
+    if (govSel && !govSel.disabled && gov &&
+        [...govSel.options].some(o => o.value === gov)) govSel.value = gov;
+    const arr = NODE_FREQS[node] || [];
+    if (arr.length){
+        // snap requested MHz to nearest real OPP
+        const nearest = (t) => arr.reduce((a,b)=>Math.abs(b-t)<Math.abs(a-t)?b:a, arr[0]);
+        if (minMhz != null) setSliderToFreq(`${node}-min`, nearest(minMhz));
+        if (maxMhz != null) setSliderToFreq(`${node}-max`, nearest(maxMhz));
+    }
+}
+
+// Compute + populate all Advanced controls for a profile. Derived from the
+// device's own probed OPP tables/governors so it fits any kernel variant.
+// Does NOT apply — user reviews then hits Apply (safety model preserved).
+// Pure computation: what would profile `p` set on each control? No DOM writes —
+// used both to apply a profile and to detect whether current values MATCH one
+// (so imports/manual edits that happen to equal a profile get labeled correctly).
+function computeProfileTargets(p){
+    if (!PROBE) return null;
+    const targets = {};
+    const cpuNodes = ['big','mid','little'].filter(n => PROBE.nodes[n]);
+    cpuNodes.forEach(node => {
+        const arr = NODE_FREQS[node] || [];
+        if (!arr.length) return;
+        const lo = arr[0], hi = arr[arr.length-1];
+        if (p === 'battery'){
+            const cap = arr[Math.max(0, Math.floor(arr.length * 0.65) - 1)];
+            targets[`gov-${node}`] = pickGov(node, ['powersave','conservative','schedutil']);
+            targets[`${node}-min`] = lo; targets[`${node}-max`] = cap;
+        } else if (p === 'performance'){
+            const floor = arr[Math.floor(arr.length * 0.4)];
+            targets[`gov-${node}`] = pickGov(node, ['performance','schedutil']);
+            targets[`${node}-min`] = floor; targets[`${node}-max`] = hi;
+        } else {
+            const stockGov = (STOCK.cpugov && Object.values(STOCK.cpugov)[0]) || pickGov(node, ['schedutil']);
+            targets[`gov-${node}`] = stockGov;
+            targets[`${node}-min`] = lo; targets[`${node}-max`] = hi;
+        }
+    });
+    if (PROBE.nodes.gpu){
+        const g = NODE_FREQS.gpu || [];
+        if (g.length){
+            const glo = g[0], ghi = g[g.length-1];
+            if (p === 'battery'){
+                const gcap = g[Math.max(0, Math.floor(g.length*0.6)-1)];
+                targets['gov-gpu'] = pickGov('gpu',['powersave','simple_ondemand','Interactive','Default']);
+                targets['gpu-min'] = glo; targets['gpu-max'] = gcap;
+            } else if (p === 'performance'){
+                targets['gov-gpu'] = pickGov('gpu',['performance','Booster','Interactive','simple_ondemand']);
+                targets['gpu-min'] = g[Math.floor(g.length*0.4)]; targets['gpu-max'] = ghi;
+            } else {
+                targets['gov-gpu'] = STOCK.gpugov || pickGov('gpu',['simple_ondemand','Default','Interactive']);
+                targets['gpu-min'] = glo; targets['gpu-max'] = ghi;
+            }
+        }
+    }
+    return targets;
+}
+
+// Does the CURRENT control state match one of the three profiles exactly?
+// Returns the profile name or null (meaning "custom / modified"). GPU governor
+// is skipped if the hardware doesn't expose one (some Mali kernels don't).
+function detectMatchingProfile(){
+    if (!PROBE) return null;
+    for (const p of ['battery','balanced','performance']){
+        const t = computeProfileTargets(p);
+        if (!t) continue;
+        let matches = true;
+        for (const key in t){
+            if (key.startsWith('gov-')){
+                const sel = document.querySelector(`select[data-node="${key}"]`);
+                if (sel && !sel.disabled && sel.value !== t[key]){ matches = false; break; }
+            } else {
+                const fm = key.match(/^(big|mid|little|gpu)-(min|max)$/);
+                if (fm){
+                    const arr = NODE_FREQS[fm[1]] || [];
+                    const inp = document.querySelector(`input[data-freq="${key}"]`);
+                    if (inp && !inp.disabled){
+                        const cur = arr[parseInt(inp.value,10)];
+                        if (cur !== t[key]){ matches = false; break; }
+                    }
+                }
+            }
+        }
+        if (matches) return p;
+    }
+    return null;
+}
+
+function applyProfile(p){
+    if (!PROBE) return;
+    const cpuNodes = ['big','mid','little'].filter(n => PROBE.nodes[n]);
+    cpuNodes.forEach(node => {
+        const arr = NODE_FREQS[node] || [];
+        if (!arr.length) return;
+        const lo = arr[0], hi = arr[arr.length-1];
+        if (p === 'battery'){
+            // conservative gov, cap max ~65%, min at floor
+            const cap = arr[Math.max(0, Math.floor(arr.length * 0.65) - 1)];
+            setNode(node, pickGov(node, ['powersave','conservative','schedutil']), lo, cap);
+        } else if (p === 'performance'){
+            // raise floor ~40%, max at full, responsive gov
+            const floor = arr[Math.floor(arr.length * 0.4)];
+            setNode(node, pickGov(node, ['performance','schedutil']), floor, hi);
+        } else { // balanced = stock
+            const stockGov = (STOCK.cpugov && Object.values(STOCK.cpugov)[0]) ||
+                             pickGov(node, ['schedutil']);
+            setNode(node, stockGov, lo, hi);
+        }
+    });
+    // GPU
+    if (PROBE.nodes.gpu){
+        const g = NODE_FREQS.gpu || [];
+        if (g.length){
+            const glo = g[0], ghi = g[g.length-1];
+            if (p === 'battery'){
+                const gcap = g[Math.max(0, Math.floor(g.length*0.6)-1)];
+                setNode('gpu', pickGov('gpu',['powersave','simple_ondemand','Interactive','Default']), glo, gcap);
+            } else if (p === 'performance'){
+                setNode('gpu', pickGov('gpu',['performance','Booster','Interactive','simple_ondemand']),
+                        g[Math.floor(g.length*0.4)], ghi);
+            } else {
+                setNode('gpu', STOCK.gpugov || pickGov('gpu',['simple_ondemand','Default','Interactive']), glo, ghi);
+            }
+        }
+    }
+    // I/O scheduler: balanced -> stock; battery/perf leave as-is (schedulers
+    // don't map cleanly to power/perf on this kernel's set).
+    if (p === 'balanced' && SCHED_DEFAULT){
+        const sc = document.querySelector('select[data-sched="io-sched"]');
+        if (sc && [...sc.options].some(o=>o.value===SCHED_DEFAULT)) sc.value = SCHED_DEFAULT;
+    }
+    refreshDirty();
+}
+
+function selectProfile(el){
+    const p = el.dataset.profile;
+    setProfile(p);
+    _prefs.profile = p; savePrefs();
+    // Populate every Advanced control from this profile's derived values.
+    // Nothing is written to sysfs until the user taps Apply.
+    applyProfile(p);
+    toast(`${p.charAt(0).toUpperCase()+p.slice(1)} profile loaded — review & Apply`);
+}
+
+function setWallpaper(cls, el){
+    const wallpapers = ['wp-titanium','wp-carbon','wp-oxide','wp-cobalt','wp-avionics','wp-tungsten'];
+    wallpapers.forEach(w => document.body.classList.remove(w));
+    document.body.classList.add(cls);
+    document.querySelectorAll('.wp-opt').forEach(o => o.classList.remove('sel'));
+    el.classList.add('sel');
+    _prefs.wallpaper = cls; savePrefs();
+}
+
+const SUN = 'M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9L17 7M7 17l-2.1 2.1';
+const MOON = 'M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z';
+function applyThemeIcon(light){
+    const icon = document.getElementById('theme-icon');
+    icon.innerHTML = light
+        ? '<circle cx="12" cy="12" r="4"/><path d="'+SUN+'"/>'
+        : '<path d="'+MOON+'"/>';
+}
+function toggleTheme(){
+    const light = document.body.classList.toggle('theme-light');
+    document.getElementById('light-switch').classList.toggle('on', light);
+    applyThemeIcon(light);
+    _prefs.theme = light ? 'light' : 'dark'; savePrefs();
+}
+
+/* ===================================================================
+   PROBE POPULATION
+   Take real probe output and reshape the UI to the actual hardware:
+   governor dropdown options, slider min/max ranges + current values,
+   scheduler options, and the DEFAULTS map used by reset. Nodes the kernel
+   doesn't expose get their card disabled rather than showing dead controls.
+   =================================================================== */
+function populateNode(node){
+    const info = PROBE.nodes[node];
+    const govSel = document.querySelector(`select[data-node="gov-${node}"]`);
+    const minIn  = document.querySelector(`input[data-freq="${node}-min"]`);
+    const maxIn  = document.querySelector(`input[data-freq="${node}-max"]`);
+    if (!info || !info.path){
+        // Node entirely absent — disable its whole card.
+        [govSel,minIn,maxIn].forEach(el => { if (el){ el.disabled = true; } });
+        if (govSel){ govSel.innerHTML = '<option>not available</option>'; }
+        return;
+    }
+    // governor: only populate if the kernel exposes one; otherwise disable JUST
+    // the dropdown (some Mali kernels have no GPU governor — freqs still work).
+    if (govSel){
+        const list = (info.govs || '').split(/\s+/).filter(Boolean);
+        if (list.length){
+            govSel.disabled = false;
+            govSel.innerHTML = '';
+            list.forEach(g => {
+                const o = document.createElement('option');
+                o.value = g; o.textContent = g;
+                if (g === info.gov) o.selected = true;
+                govSel.appendChild(o);
+            });
+        } else {
+            govSel.disabled = true;
+            govSel.innerHTML = '<option>not available</option>';
+        }
+    }
+    // freq sliders: index-based over the REAL OPP list so every slider
+    // position maps to an actual supported frequency (tables have irregular
+    // gaps, so a fixed step would produce invalid values apply.sh rejects).
+    const freqs = (info.freqs || '').split(/\s+/).filter(Boolean).map(Number).sort((a,b)=>a-b);
+    NODE_FREQS[node] = freqs;
+    if (freqs.length && minIn && maxIn){
+        minIn.disabled = false; maxIn.disabled = false;
+        // slider value = index into freqs[]
+        [minIn,maxIn].forEach(el => { el.min = 0; el.max = freqs.length - 1; el.step = 1; });
+        const curMin = Number(info.min), curMax = Number(info.max);
+        let iMin = freqs.indexOf(curMin); if (iMin < 0) iMin = 0;
+        let iMax = freqs.indexOf(curMax); if (iMax < 0) iMax = freqs.length - 1;
+        minIn.value = iMin; maxIn.value = iMax;
+        const om = document.querySelector(`[data-out="${node}-min"]`);
+        const ox = document.querySelector(`[data-out="${node}-max"]`);
+        if (om) om.textContent = freqs[iMin] + ' MHz';
+        if (ox) ox.textContent = freqs[iMax] + ' MHz';
+    } else if (minIn && maxIn){
+        minIn.disabled = true; maxIn.disabled = true;
+    }
+    // build DEFAULTS for this card from probe. Reset target:
+    //  - governor: the governor that was active at first probe (closest to
+    //    "untouched" — the kernel/ROM default before we changed anything)
+    //  - frequencies: full supported range (lowest min OPP, highest max OPP)
+    DEFAULTS[node] = {};
+    if (govSel && !govSel.disabled && info.gov) DEFAULTS[node][`gov-${node}`] = info.gov;
+    if (freqs.length){
+        DEFAULTS[node][`${node}-min`] = String(freqs[0]);
+        DEFAULTS[node][`${node}-max`] = String(freqs[freqs.length-1]);
+    }
+}
+
+// Turn whatever raw string the KernelSU-Next daemon reported (e.g.
+// "ksud 3.3.0 (uapi: 2)", a bare "3.3.0", or an already-prefixed "v1.0.2")
+// into one consistent "KernelSU-Next vX.Y.Z" display string.
+function formatKsuVersion(raw){
+    if (!raw) return raw;
+    const m = raw.match(/(\d+\.\d+(?:\.\d+)?)/);
+    if (!m) return raw;   // couldn't find a version number — show raw as-is
+    return `KernelSU-Next v${m[1]}`;
+}
+
+function populateFromProbe(){
+    if (!PROBE) return;
+    ['big','mid','little','gpu'].forEach(populateNode);
+    // scheduler dropdown
+    const sc = document.querySelector('select[data-sched="io-sched"]');
+    if (sc && PROBE.sched.avail){
+        sc.innerHTML = '';
+        PROBE.sched.avail.split(/\s+/).filter(Boolean).forEach(s => {
+            const o = document.createElement('option');
+            o.value = s; o.textContent = s;
+            if (s === PROBE.sched.cur) o.selected = true;
+            sc.appendChild(o);
+        });
+        // remember the probed-current scheduler as the reset target
+        SCHED_DEFAULT = (PROBE.sched.cur || '').trim();
+    }
+    // device pill + info tab codename
+    if (PROBE.codename){
+        document.querySelectorAll('.device-pill').forEach(p => p.textContent = PROBE.codename);
+    }
+    // GPU extras: power_policy dropdown + highspeed_load slider (if present)
+    const gpu = PROBE.nodes.gpu;
+    const ppSel = document.querySelector('select[data-gpuextra="gpu-power-policy"]');
+    if (ppSel){
+        const ppRaw = PROBE.gpuextra && PROBE.gpuextra.power_policy;
+        if (ppRaw){
+            const cur = (ppRaw.match(/\[([^\]]+)\]/) || [])[1] || '';
+            const list = ppRaw.replace(/[\[\]]/g,'').split(/\s+/).filter(Boolean);
+            ppSel.innerHTML = '';
+            list.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v;
+                if(v===cur)o.selected=true; ppSel.appendChild(o); });
+            ppSel.closest('.option-row').style.display='';
+        } else {
+            ppSel.closest('.option-row').style.display='none';
+        }
+    }
+    const hsRow = document.getElementById('hsload-row');
+    const hsInp = document.querySelector('input[data-hsload]');
+    if (hsRow && hsInp){
+        const hs = PROBE.gpuextra && PROBE.gpuextra.highspeed_load;
+        if (hs && /^\d+$/.test(hs)){
+            hsInp.value = hs;
+            document.querySelector('[data-out="gpu-highspeed-load"]').textContent = hs + '%';
+            hsRow.style.display='';
+        } else { hsRow.style.display='none'; }
+    }
+    // swappiness: initialize from the kernel's current value
+    const swapInp = document.querySelector('input[data-swap]');
+    if (swapInp && PROBE.vm && /^\d+$/.test(PROBE.vm.swappiness||'')){
+        swapInp.value = PROBE.vm.swappiness;
+        const o = document.querySelector('[data-out="swappiness"]'); if (o) o.textContent = PROBE.vm.swappiness;
+    }
+    // Software versions (kernel / KernelSU / SUSFS) — only shown if probed.
+    // Each row is independent since a kernel might expose one but not others.
+    const ver = PROBE.ver || {};
+    let anyVer = false;
+    const verRow = (id, field, val) => {
+        const row = document.getElementById(id), el = document.getElementById(field);
+        if (val){ el.textContent = val; row.style.display = ''; anyVer = true; }
+        else { row.style.display = 'none'; }
+    };
+    verRow('ver-row-kernel', 'info-kernelver', ver.kernel);
+    verRow('ver-row-ksu', 'info-ksuver', formatKsuVersion(ver.kernelsu));
+    verRow('ver-row-susfs', 'info-susfsver', ver.susfs);
+    document.getElementById('ver-section-label').style.display = anyVer ? '' : 'none';
+    document.getElementById('ver-card').style.display = anyVer ? '' : 'none';
+}
+
+/* Read the module status file and reflect safe-mode / applied state. */
+async function refreshStatus(){
+    const r = await KSU.exec(`cat ${STATE_DIR}/status 2>/dev/null`);
+    const s = (r.stdout || '').trim();
+    const cnt = await KSU.exec(`cat ${STATE_DIR}/bootcount 2>/dev/null`);
+    const sm = await KSU.exec(`[ -f ${STATE_DIR}/safemode ] && echo yes || echo no`);
+    const safemode = (sm.stdout || '').trim() === 'yes';
+    const set = (id,txt,ok) => { const e=document.getElementById(id);
+        if(e){ e.textContent=txt; e.classList.toggle('status-ok',ok); } };
+    set('info-status', s || 'unknown', s==='healthy'||s.startsWith('applied'));
+    set('info-sentinel', (cnt.stdout||'0').trim()==='0' ? 'Clear' : `count ${(cnt.stdout||'').trim()}`, (cnt.stdout||'0').trim()==='0');
+    set('info-safemode', safemode ? 'ACTIVE' : 'Off', !safemode);
+    const nodes = PROBE ? Object.keys(PROBE.nodes).length : 0;
+    set('info-probe', PROBE ? `${nodes} nodes OK` : 'probe failed', !!PROBE);
+    const eng = document.getElementById('info-engine');
+    if (eng){
+        const seen = [];
+        if (typeof window !== 'undefined'){
+            if (window.$ksu) seen.push('$ksu');
+            if (window.ksu) seen.push('ksu');
+            if (typeof exec === 'function') seen.push('exec()');
+        }
+        eng.textContent = (KSU.live ? 'live' : 'mock') + ` · ${nodes}n · [${seen.join(',') || 'none'}]`;
+    }
+    if (safemode || s === 'safemode') showSafeModeBanner();
+}
+function showSafeModeBanner(){
+    if (document.getElementById('safemode-banner')) return;
+    const b = document.createElement('div');
+    b.id = 'safemode-banner';
+    b.style.cssText = `margin:8px 0;padding:14px;border-radius:var(--shape-md);
+        background:rgba(255,180,171,0.12);border:1px solid var(--m3-error);
+        color:var(--m3-error);font-size:.85rem;font-weight:600;`;
+    b.innerHTML = `Safe mode is active — tuning was skipped after repeated boot
+        failures. <button onclick="clearSafeMode()" style="margin-top:8px;
+        display:block;background:var(--m3-error);color:#fff;border:none;
+        padding:8px 16px;border-radius:var(--shape-full);font-weight:700;">
+        Restore &amp; re-enable tuning</button>`;
+    const content = document.querySelector('.content');
+    content.insertBefore(b, content.firstChild);
+}
+async function clearSafeMode(){
+    await KSU.exec(`rm -f ${STATE_DIR}/safemode; echo 0 > ${STATE_DIR}/bootcount`);
+    const b = document.getElementById('safemode-banner');
+    if (b) b.remove();
+    toast('Safe mode cleared — reboot to apply tuning');
+}
+
+/* ===================================================================
+   AUTH (deterrence gate for the UI only — root can edit config directly)
+   Password: PBKDF2-SHA256 hash + random salt, stored chmod 600. Never the
+   plaintext. Biometric: WebAuthn platform authenticator if the webview supports
+   it, else hidden. Lock shows on every open when a password is set.
+   =================================================================== */
+const AUTH_PATH = STATE_DIR + '/auth.conf';
+const AUTH = { enabled:false, salt:'', hash:'' };
+
+async function loadAuth(){
+    const r = await KSU.exec(`cat ${AUTH_PATH} 2>/dev/null`);
+    if (r.errno === 0 && r.stdout){
+        let fmt = '';
+        r.stdout.split('\n').forEach(line => {
+            const i = line.indexOf('='); if (i<0) return;
+            const k = line.slice(0,i).trim(), v = line.slice(i+1).trim();
+            if (k==='enabled') AUTH.enabled = v==='1';
+            if (k==='salt') AUTH.salt = v;
+            if (k==='hash') AUTH.hash = v;
+            if (k==='fmt') fmt = v;
+        });
+        // Migration: a credential from the old password version has no fmt=pin
+        // marker. Its hash is of a text password the numeric PIN pad can't enter,
+        // which would lock the user out. Auto-clear it so they can set a new PIN.
+        if (AUTH.enabled && fmt !== 'pin'){
+            AUTH.enabled = false; AUTH.salt=''; AUTH.hash='';
+            await KSU.exec(`rm -f ${AUTH_PATH}`);
+            setTimeout(() => toast('Lock reset — set a new PIN in Settings'), 600);
+        }
+    }
+}
+function saveAuth(){
+    const txt = `enabled=${AUTH.enabled?1:0}\nfmt=pin\nsalt=${AUTH.salt}\nhash=${AUTH.hash}\n`;
+    // write then lock down perms so other apps can't read the hash
+    KSU.exec(`mkdir -p ${STATE_DIR}; cat > ${AUTH_PATH} <<'EOF__A'\n${txt}EOF__A\nchmod 600 ${AUTH_PATH}`);
+}
+
+function buf2hex(buf){ return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,'0')).join(''); }
+function hex2buf(hex){ const a=new Uint8Array(hex.length/2); for(let i=0;i<a.length;i++)a[i]=parseInt(hex.substr(i*2,2),16); return a.buffer; }
+
+async function hashPassword(pw, saltHex){
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey('raw', enc.encode(pw), 'PBKDF2', false, ['deriveBits']);
+    const bits = await crypto.subtle.deriveBits(
+        { name:'PBKDF2', salt:hex2buf(saltHex), iterations:150000, hash:'SHA-256' }, key, 256);
+    return buf2hex(bits);
+}
+function randomHex(n){ const a=new Uint8Array(n); crypto.getRandomValues(a); return buf2hex(a.buffer); }
+
+/* ---- Toggle: Require password ---- */
+async function togglePassword(){
+    const sw = document.getElementById('sw-password');
+    if (!AUTH.enabled){
+        // enabling: prompt to set a PIN (4-6 digits)
+        const pin = await promptPassword('Set a PIN', 'Choose a 4-6 digit PIN to lock the interface');
+        if (!pin){ return; }  // cancelled
+        if (!/^\d{4,6}$/.test(pin)){ toast('PIN must be 4-6 digits'); return; }
+        // confirm it
+        const pin2 = await promptPassword('Confirm PIN', 'Enter your PIN again');
+        if (pin2 !== pin){ toast('PINs did not match'); return; }
+        const salt = randomHex(16);
+        AUTH.salt = salt;
+        AUTH.hash = await hashPassword(pin, salt);
+        AUTH.enabled = true;
+        sw.classList.add('on');
+        saveAuth();
+        toast('PIN lock enabled');
+    } else {
+        // disabling: require current PIN
+        const pin = await promptPassword('Confirm PIN', 'Enter your PIN to disable the lock');
+        if (pin == null) return;
+        const h = await hashPassword(pin, AUTH.salt);
+        if (h !== AUTH.hash){ toast('Wrong PIN'); return; }
+        AUTH.enabled = false; AUTH.salt=''; AUTH.hash='';
+        sw.classList.remove('on');
+        saveAuth();
+        toast('PIN lock disabled');
+    }
+}
+
+/* ---- Lock screen flow ---- */
+function showLock(){
+    const ov = document.getElementById('lock-overlay');
+    ov.style.display = 'flex';
+    document.getElementById('lock-input').value = '';
+    document.getElementById('lock-err').textContent = '';
+    setTimeout(() => document.getElementById('lock-input').focus(), 100);
+}
+function unlockUI(){ document.getElementById('lock-overlay').style.display = 'none'; }
+async function lockSubmit(){
+    const pin = document.getElementById('lock-input').value;
+    const h = await hashPassword(pin, AUTH.salt);
+    if (h === AUTH.hash){ unlockUI(); }
+    else { document.getElementById('lock-err').textContent = 'Incorrect PIN';
+           document.getElementById('lock-input').value = ''; }
+}
+
+/* Small in-app password prompt (returns entered string or null if cancelled).
+   Reuses the lock overlay chrome via a lightweight modal. */
+function promptPassword(title, sub){
+    return new Promise((resolve) => {
+        const ov = document.getElementById('lock-overlay');
+        document.getElementById('lock-title').textContent = title;
+        document.getElementById('lock-sub').textContent = sub;
+        document.getElementById('lock-err').textContent = '';
+        const inp = document.getElementById('lock-input'); inp.value='';
+        const btn = document.getElementById('lock-submit');
+        ov.style.display='flex'; setTimeout(()=>inp.focus(),100);
+        // temporary handlers
+        const done = (val) => {
+            btn.onclick = origClick; inp.onkeydown = origKey;
+            // restore default lock titles
+            document.getElementById('lock-title').textContent='Enter PIN';
+            document.getElementById('lock-sub').textContent='Unlock the tuner interface';
+            ov.style.display='none';
+            resolve(val);
+        };
+        const origClick = btn.onclick, origKey = inp.onkeydown;
+        btn.onclick = () => { if (inp.value.length>0) done(inp.value); };
+        inp.onkeydown = (e) => { if(e.key==='Enter'&&inp.value.length>0) done(inp.value); };
+    });
+}
+
+/* Read the saved config and set controls to match — so the UI reflects what
+   was actually applied, surviving reopen/reboot. Only sets values that are
+   valid for this hardware (governor in list, freq a real OPP). */
+/* Apply one validated config line (key=value) to its matching control.
+   Shared by loadSavedConfig (reading our own saved file) and importConfigFile
+   (reading a user-provided file) — same validation either way, since an
+   imported file is no more trusted than one edited by hand. Returns true if
+   the line matched a known, valid control. */
+function applyConfigLineToControls(k, v){
+    if (!k || !v) return false;
+    if (k.startsWith('gov-')){
+        const sel = document.querySelector(`select[data-node="${k}"]`);
+        if (sel && !sel.disabled && [...sel.options].some(o => o.value === v)){ sel.value = v; return true; }
+        return false;
+    }
+    const fm = k.match(/^(big|mid|little|gpu)-(min|max)$/);
+    if (fm){
+        const node = fm[1];
+        if ((NODE_FREQS[node]||[]).includes(Number(v))){ setSliderToFreq(k, v); return true; }
+        return false;
+    }
+    if (k === 'io-sched'){
+        const sel = document.querySelector('select[data-sched="io-sched"]');
+        if (sel && [...sel.options].some(o => o.value === v)){ sel.value = v; return true; }
+        return false;
+    }
+    if (k === 'gpu-power-policy'){
+        const sel = document.querySelector('select[data-gpuextra="gpu-power-policy"]');
+        if (sel && [...sel.options].some(o => o.value === v)){ sel.value = v; return true; }
+        return false;
+    }
+    if (k === 'gpu-highspeed-load'){
+        const inp = document.querySelector('input[data-hsload]');
+        if (inp && /^\d+$/.test(v) && +v <= 100){
+            inp.value = v; const o=document.querySelector('[data-out="gpu-highspeed-load"]'); if(o)o.textContent=v+'%';
+            return true;
+        }
+        return false;
+    }
+    if (k === 'swappiness'){
+        const inp = document.querySelector('input[data-swap]');
+        if (inp && /^\d+$/.test(v) && +v <= 200){
+            inp.value = v; const o=document.querySelector('[data-out="swappiness"]'); if(o)o.textContent=v;
+            return true;
+        }
+        return false;
+    }
+    if (k === '__profile'){ setProfile(v); return true; }
+    return false;
+}
+
+/* ===================================================================
+   CONFIG BACKUP — export/import as a real file via the browser.
+   Export: read the saved config, trigger a download. Import: read a chosen
+   file, validate every line through the SAME gate as loadSavedConfig (an
+   imported file is just as untrusted as a hand-edited one), stage the valid
+   values, and let the user review + Apply — nothing writes sysfs directly.
+   =================================================================== */
+async function exportConfig(){
+    const r = await KSU.exec(`cat ${CONFIG_PATH} 2>/dev/null`);
+    if (r.errno !== 0 || !r.stdout){ toast('No saved config to export'); return; }
+    const stamp = new Date().toISOString().slice(0,10);
+    const dest = `/sdcard/Download/exynos9820_tune_${stamp}.txt`;
+    // Base64-encode and decode in one line — avoids multi-line heredocs, which
+    // can get mangled passing through the WebUI exec bridge (embedded newlines/
+    // terminator matching don't survive some ksu.exec() transports intact).
+    const b64 = btoa(unescape(encodeURIComponent(r.stdout)));
+    const w = await KSU.exec(`echo '${b64}' | base64 -d > "${dest}" && chmod 644 "${dest}" && echo OK`);
+    if (w.errno !== 0 || !(w.stdout||'').includes('OK')){
+        toast('Export failed — could not write to Download'); return;
+    }
+    // Verify the file actually landed (belt-and-braces against a bridge that
+    // reports success even when the underlying write silently failed).
+    const check = await KSU.exec(`[ -s "${dest}" ] && echo EXISTS`);
+    if (!(check.stdout||'').includes('EXISTS')){
+        toast('Export uncertain — check Download folder'); return;
+    }
+    toast(`Exported to Download/${dest.split('/').pop()}`);
+}
+
+function importConfigFile(input){
+    const file = input.files && input.files[0];
+    input.value = '';   // reset so re-selecting the same file re-fires onchange
+    if (!file) return;
+    if (file.size > 100*1024){ toast('File too large'); return; }
+    const reader = new FileReader();
+    reader.onerror = () => toast('Could not read file');
+    reader.onload = () => {
+        const text = String(reader.result || '');
+        let applied = 0, skipped = 0;
+        text.split('\n').forEach(line => {
+            const i = line.indexOf('='); if (i < 0) return;
+            const k = line.slice(0,i).trim(), v = line.slice(i+1).trim();
+            if (!k || !v) return;
+            if (applyConfigLineToControls(k, v)) applied++; else skipped++;
+        });
+        refreshDirty();
+        if (applied === 0){ toast('No valid settings found in file'); return; }
+        toast(`Imported ${applied} setting${applied===1?'':'s'}${skipped?` · ${skipped} skipped`:''} — review & Apply`);
+    };
+    reader.readAsText(file);
+}
+
+async function loadSavedConfig(){
+    const r = await KSU.exec(`cat ${CONFIG_PATH} 2>/dev/null`);
+    if (r.errno !== 0 || !r.stdout) return;
+    r.stdout.split('\n').forEach(line => {
+        const i = line.indexOf('='); if (i < 0) return;
+        applyConfigLineToControls(line.slice(0,i).trim(), line.slice(i+1).trim());
+    });
+    // reflect the saved profile selection if present
+    if (_prefs.profile) setProfile(_prefs.profile);
+}
+
+/* ---------- boot ---------- */
+window.addEventListener('DOMContentLoaded', async () => {
+    let bootErr = '';
+    try {
+        // 1. Probe the real hardware and reshape controls to it.
+        const pr = await KSU.exec(`sh ${MODDIR}/scripts/probe.sh`);
+        if (pr && pr.errno === 0 && pr.stdout && pr.stdout.indexOf('node.') !== -1){
+            PROBE = parseProbe(pr.stdout);
+            populateFromProbe();
+            populateVmargins();
+            await loadStockDefaults();   // stock reset targets (overrides probed-current)
+        } else {
+            bootErr = 'probe: errno=' + (pr && pr.errno) +
+                      ' len=' + (pr && pr.stdout ? pr.stdout.length : 0) +
+                      (pr && pr.stderr ? ' err=' + pr.stderr.slice(0,80) : '');
+        }
+    } catch(e){ bootErr = 'probe threw: ' + e; }
+
+    try {
+        // 2. Restore saved UI prefs.
+        applyPrefs(await loadPrefs());
+    } catch(e){ /* prefs are non-critical */ }
+
+    // 2b. Load auth; reflect toggle states; lock the UI if a password is set.
+    try {
+        await loadAuth();
+        document.getElementById('sw-password').classList.toggle('on', AUTH.enabled);
+        if (AUTH.enabled) showLock();
+    } catch(e){ /* auth non-critical to tuning */ }
+
+    // 2c. Overlay the SAVED config onto the controls. Probe populates sliders
+    // from the live sysfs reading, but that can drift; the saved config is the
+    // authoritative "what the user set" state. This makes reopening/rebooting
+    // show the applied profile/values instead of stale positions.
+    try { await loadSavedConfig(); } catch(e){ /* non-critical */ }
+
+    // 3. Baseline snapshot = current control state.
+    state.staged = readControls();
+    state.snapshot = { ...state.staged };
+    refreshDirty();
+
+    // 4. Module status + live polling.
+    try { await refreshStatus(); } catch(e){ bootErr = bootErr || ('status: '+e); }
+    // stash any boot error for the Info tab engine row
+    if (bootErr){ window.__bootErr = bootErr; const eng=document.getElementById('info-engine');
+        if (eng) eng.textContent = (KSU.live?'live':'mock') + ' · ERR: ' + bootErr; }
+    pollLive();
+    startPoll();
+});
+</script>
+</body>
+</html>
