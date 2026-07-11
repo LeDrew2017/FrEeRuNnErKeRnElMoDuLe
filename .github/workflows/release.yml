@@ -1,0 +1,79 @@
+name: Build and sign release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-and-sign:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version from tag
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Build module zip
+        run: |
+          ZIP="FrEeRuNnErKeRnEl_MoDuLe-${{ steps.ver.outputs.version }}.zip"
+          zip -r "$ZIP" \
+            module.prop customize.sh post-fs-data.sh service.sh \
+            boot-completed.sh uninstall.sh \
+            scripts/probe.sh scripts/apply.sh scripts/watchdog.sh \
+            webroot/index.html icon/icon.png \
+            -x '*.DS_Store'
+          echo "ZIP_NAME=$ZIP" >> "$GITHUB_ENV"
+
+      - name: Generate SHA256SUMS
+        run: sha256sum "${{ env.ZIP_NAME }}" > SHA256SUMS
+
+      - name: Import GPG key
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          echo "default-cache-ttl 600" >> ~/.gnupg/gpg-agent.conf || true
+
+      - name: Sign SHA256SUMS
+        run: |
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
+            --detach-sign --armor SHA256SUMS
+
+      - name: Extract changelog section for this version
+        id: changelog
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          # Pull everything between this version's "## vX.Y.Z" heading and the
+          # next "## " heading (or end of file) out of CHANGELOG.md.
+          NOTES="$(awk -v ver="## $VERSION" '
+            $0 ~ "^"ver { found=1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md)"
+          if [ -z "$NOTES" ]; then
+            NOTES="No changelog entry found for $VERSION — see CHANGELOG.md."
+          fi
+          # GitHub Actions multiline output needs this delimiter form.
+          {
+            echo "notes<<CHANGELOG_EOF"
+            echo "$NOTES"
+            echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ${{ env.ZIP_NAME }}
+            SHA256SUMS
+            SHA256SUMS.asc
+          name: ${{ steps.ver.outputs.version }}
+          body: |
+            ${{ steps.changelog.outputs.notes }}
+
+            ---
+            🔐 Verify before flashing: `gpg --verify SHA256SUMS.asc SHA256SUMS && sha256sum -c SHA256SUMS`
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
