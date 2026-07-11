@@ -1,9 +1,10 @@
 name: Build and sign release
 
-on:
+"on":
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
 
 jobs:
   build-and-sign:
