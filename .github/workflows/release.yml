@@ -34,17 +34,29 @@ jobs:
             echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Verify module.prop version matches this release
+      - name: Fetch full tag history
         if: steps.ver.outputs.publish == 'true'
+        run: git fetch --tags --force
+
+      - name: Compute versionCode and stamp module.prop
+        if: steps.ver.outputs.publish == 'true'
+        id: stamp
         run: |
-          RELEASE_VERSION="${{ steps.ver.outputs.version }}"
-          PROP_VERSION="$(grep '^version=' module.prop | cut -d= -f2)"
-          if [ "$PROP_VERSION" != "$RELEASE_VERSION" ]; then
-            echo "::error::module.prop says version=$PROP_VERSION but you're releasing $RELEASE_VERSION."
-            echo "::error::Bump 'version' AND 'versionCode' in module.prop, commit that, THEN tag/release."
-            exit 1
-          fi
-          echo "module.prop version matches release tag ($PROP_VERSION) — proceeding."
+          VERSION="${{ steps.ver.outputs.version }}"
+          # versionCode = number of existing release tags (this one included),
+          # so it always increments by exactly 1 per release with zero manual
+          # bookkeeping. Counts annotated + lightweight tags matching v*.*.*.
+          EXISTING_COUNT="$(git tag -l 'v*.*.*' | grep -vx "$VERSION" | wc -l)"
+          VCODE=$((EXISTING_COUNT + 1))
+          echo "vcode=$VCODE" >> "$GITHUB_OUTPUT"
+
+          # Stamp both fields into module.prop for THIS BUILD ONLY — the repo's
+          # committed module.prop is left untouched; this only affects the zip
+          # that gets built and released.
+          sed -i "s/^version=.*/version=$VERSION/" module.prop
+          sed -i "s/^versionCode=.*/versionCode=$VCODE/" module.prop
+          echo "--- module.prop for this release ---"
+          cat module.prop
 
       - name: Build module zip
         run: |
@@ -122,10 +134,7 @@ jobs:
         if: steps.ver.outputs.publish == 'true'
         run: |
           VERSION="${{ steps.ver.outputs.version }}"
-          # versionCode is read from module.prop — the one place you actually
-          # maintain it — so update.json can never drift out of sync with the
-          # module's own declared version.
-          VCODE="$(grep '^versionCode=' module.prop | cut -d= -f2)"
+          VCODE="${{ steps.stamp.outputs.vcode }}"
           REPO="${{ github.repository }}"
           cat > update.json << EOF
           {
