@@ -34,6 +34,18 @@ jobs:
             echo "publish=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Verify module.prop version matches this release
+        if: steps.ver.outputs.publish == 'true'
+        run: |
+          RELEASE_VERSION="${{ steps.ver.outputs.version }}"
+          PROP_VERSION="$(grep '^version=' module.prop | cut -d= -f2)"
+          if [ "$PROP_VERSION" != "$RELEASE_VERSION" ]; then
+            echo "::error::module.prop says version=$PROP_VERSION but you're releasing $RELEASE_VERSION."
+            echo "::error::Bump 'version' AND 'versionCode' in module.prop, commit that, THEN tag/release."
+            exit 1
+          fi
+          echo "module.prop version matches release tag ($PROP_VERSION) — proceeding."
+
       - name: Build module zip
         run: |
           ZIP="FrEeRuNnErKeRnEl_MoDuLe-${{ steps.ver.outputs.version }}.zip"
@@ -105,6 +117,39 @@ jobs:
             🔐 Verify before flashing: `gpg --verify SHA256SUMS.asc SHA256SUMS && sha256sum -c SHA256SUMS`
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update update.json to point at this release
+        if: steps.ver.outputs.publish == 'true'
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          # versionCode is read from module.prop — the one place you actually
+          # maintain it — so update.json can never drift out of sync with the
+          # module's own declared version.
+          VCODE="$(grep '^versionCode=' module.prop | cut -d= -f2)"
+          REPO="${{ github.repository }}"
+          cat > update.json << EOF
+          {
+            "version": "$VERSION",
+            "versionCode": $VCODE,
+            "zipUrl": "https://github.com/$REPO/releases/download/$VERSION/${{ env.ZIP_NAME }}",
+            "changelog": "https://raw.githubusercontent.com/$REPO/main/CHANGELOG.md"
+          }
+          EOF
+          cat update.json
+
+      - name: Commit updated update.json
+        if: steps.ver.outputs.publish == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add update.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Update update.json for ${{ steps.ver.outputs.version }} [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          else
+            echo "update.json unchanged — nothing to commit."
+          fi
 
       - name: Manual test-build summary (no release created)
         if: steps.ver.outputs.publish == 'false'
