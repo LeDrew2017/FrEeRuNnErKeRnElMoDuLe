@@ -2,6 +2,15 @@
 
 All notable changes to FrEeRuNnErKeRnEl MoDuLe are documented here.
 
+## v1.0.1
+
+- Expanded Exynos9820 Support: Resolved issues found during extended testing across the broader device family (including beyond0lte alongside beyond2lte).
+- Accurate Device Identification: Fixed a bug where the module could report the wrong codename. Device identity is now read directly from the live ro.product.device system property, preventing the use of stale or absent file paths.
+- Resolved "Hardware Not Detected" Error: Fixed the root cause of false failures in the WebUI. The probe.sh script now always exits cleanly upon success, rather than letting ambiguous internal checks (like an empty SUSFS check) dictate the exit status.
+- GPU Frequency Validation: Added checks for malformed or out-of-range GPU min/max clocks. The module now verifies these against the device's real supported frequency range and corrects them automatically.
+- Corrected Device List: Fixed an incorrect device codename for the Note10 5G (d1x) and added support for the Galaxy F62 (f62), which was previously missing from the install-time check.
+- UI Enhancement: Added a module icon.
+
 ## v1.0.0 — Initial release
 
 First public release.
