@@ -5,17 +5,34 @@ name: Build and sign release
     tags:
       - 'v*.*.*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build and release (e.g. v1.0.1). Leave blank to just test build+sign without publishing.'
+        required: false
+        type: string
 
 jobs:
   build-and-sign:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Read version from tag
+      - name: Read version
         id: ver
-        run: echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] && [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=test-build" >> "$GITHUB_OUTPUT"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build module zip
         run: |
@@ -63,9 +80,19 @@ jobs:
             echo "CHANGELOG_EOF"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Create tag for manual release
+        if: steps.ver.outputs.publish == 'true' && github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "${{ steps.ver.outputs.version }}" -m "FrEeRuNnErKeRnEl MoDuLe ${{ steps.ver.outputs.version }}"
+          git push origin "${{ steps.ver.outputs.version }}"
+
       - name: Create GitHub Release
+        if: steps.ver.outputs.publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.ver.outputs.version }}
           files: |
             ${{ env.ZIP_NAME }}
             SHA256SUMS
@@ -78,3 +105,9 @@ jobs:
             🔐 Verify before flashing: `gpg --verify SHA256SUMS.asc SHA256SUMS && sha256sum -c SHA256SUMS`
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Manual test-build summary (no release created)
+        if: steps.ver.outputs.publish == 'false'
+        run: |
+          echo "Manual test run — build and signing verified, but no GitHub Release was created."
+          echo "Re-run with a version input, or push a tag matching v*.*.*, to publish a real release."
