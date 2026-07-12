@@ -2,6 +2,12 @@
 
 All notable changes to FrEeRuNnErKeRnEl MoDuLe are documented here.
 
+## v1.0.3 — Themes and theme picker overhaul
+
+- Added 9 new themes (Onyx, Graphite, Chrome, Basalt, Stealth, Nomex, Vantablack, Arctic, Solar) alongside the original 6, for 15 total.
+- Converted the theme picker from a fixed grid to a swipeable carousel with larger previews and dot indicators, to accommodate the larger theme set.
+- Improved all theme background gradients from 2 color stops to 3, avoiding the grayish/muddy mid-section that can occur with only 2 stops.
+
 ## v1.0.2 — Update checks, profile previews, and thermal awareness
 
 - Added an in-app update check (Settings → About): shows the installed version and checks GitHub for newer releases, with a direct link to the release when one is available.
