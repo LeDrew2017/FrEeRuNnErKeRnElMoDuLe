@@ -2,6 +2,13 @@
 
 All notable changes to FrEeRuNnErKeRnEl MoDuLe are documented here.
 
+## v1.0.2 — Update checks, profile previews, and thermal awareness
+
+- Added an in-app update check (Settings → About): shows the installed version and checks GitHub for newer releases, with a direct link to the release when one is available.
+- Added a config-diff preview when switching profiles: shows exactly what will change (governors, CPU frequencies, GPU settings, I/O scheduler) before you apply.
+- Added a thermal throttle indicator on Home: warns when a CPU cluster or the GPU is running below its configured max frequency while running hot, distinguishing real throttling from normal idle or expected high-load behavior.
+- Added a stock governor badge: marks the kernel's actual factory-default governor in each CPU and GPU governor dropdown, so it's clear at a glance which option matches stock.
+
 ## v1.0.1
 
 - Expanded Exynos9820 Support: Resolved issues found during extended testing across the broader device family (including beyond0lte alongside beyond2lte).
