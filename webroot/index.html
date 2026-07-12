@@ -213,6 +213,11 @@ button{cursor:pointer;border:none;background:none;}
 .vmargin-warn{margin:0 8px 8px;padding:12px 14px;border-radius:var(--shape-md);
     background:rgba(255,180,171,0.10);border:1px solid rgba(255,180,171,0.3);
     color:var(--m3-error);font-size:.78rem;font-weight:600;line-height:1.4;}
+.throttle-banner{margin:0 8px 14px;padding:12px 14px;border-radius:var(--shape-md);
+    background:rgba(224,184,74,0.12);border:1px solid rgba(224,184,74,0.35);
+    color:#e0b84a;font-size:.8rem;font-weight:600;line-height:1.4;
+    display:flex;align-items:flex-start;gap:10px;}
+.throttle-banner svg{width:18px;height:18px;flex-shrink:0;margin-top:1px;stroke:#e0b84a;}
 .vmargin-numbox{width:52px;height:28px;border-radius:var(--shape-sm);text-align:center;
     background:var(--m3-surface-container-high);border:1px solid var(--m3-outline);
     color:var(--m3-on-surface);font-weight:700;font-size:.85rem;font-variant-numeric:tabular-nums;
@@ -473,6 +478,8 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.2);}
             </div>
             <div class="profile-diff" id="profile-diff" style="display:none;"></div>
         </div>
+
+        <div class="throttle-banner" id="throttle-banner" style="display:none;"></div>
 
         <div class="section-label">Vitals</div>
         <div class="ring-grid">
@@ -1525,6 +1532,8 @@ async function pollLive(){
     const res = await KSU.exec(parts.join('; echo "|"; ') + '; echo "|"');
     const vals = (res.stdout || '').split('|').map(x => x.trim());
     const sparkSample = {};   // node -> normalized 0-100 for this poll, for the chart
+    const liveMhz = {};       // node -> current live MHz, for throttle detection
+    const liveTempC = {};     // 'cpu'/'gpu' -> current temp C, for throttle detection
     order.forEach(([id,unit], i) => {
         const raw = parseInt(vals[i], 10);
         if (isNaN(raw)) return;
@@ -1541,18 +1550,22 @@ async function pollLive(){
         if (unit === 'temp'){
             const c = raw/1000;
             setRing(id, c, 100, c.toFixed(0)+'\u00B0', tempColor(c));
+            if (id === 'ring-cputemp') liveTempC.cpu = c;
+            if (id === 'ring-gputemp') liveTempC.gpu = c;
         } else {
             setLive(id, txt);
             // record normalized % of this node's max OPP for the sparkline
             const node = id.replace('lv-','');
             const arr = NODE_FREQS[node];
+            const mhz = unit==='khz' ? raw/1000 : unit==='hz' ? raw/1e6
+                : (raw>=1e8 ? raw/1e6 : raw>=1e5 ? raw/1e3 : raw);
+            liveMhz[node] = mhz;
             if (arr && arr.length){
-                const mhz = unit==='khz' ? raw/1000 : unit==='hz' ? raw/1e6
-                    : (raw>=1e8 ? raw/1e6 : raw>=1e5 ? raw/1e3 : raw);
                 sparkSample[node] = Math.max(0, Math.min(100, (mhz/arr[arr.length-1])*100));
             }
         }
     });
+    checkThrottle(liveMhz, liveTempC);
     recordSpark(sparkSample);
 
     // RAM % + battery % + health — one more batched read.
@@ -1574,6 +1587,42 @@ async function pollLive(){
     }
     const health = (healthRaw||'').trim();
     if (health) setLive('lv-batthealth', health);
+}
+
+// Detect active thermal throttling: a cluster/GPU running meaningfully below
+// its OWN CONFIGURED max while temps are elevated is the signature of the
+// kernel forcibly capping frequency for heat — not something a user set.
+// A cluster idling low at normal temp is just idle, not throttling.
+const THROTTLE_RATIO = 0.70;   // below 70% of configured max = suspect
+const THROTTLE_TEMP_C = 45;    // must also be at/above the "warm" threshold
+function checkThrottle(liveMhz, liveTempC){
+    if (!state.staged) return;
+    const throttled = [];
+    const clusterNames = { big:'Big cluster', mid:'Mid cluster', little:'Little cluster' };
+    ['big','mid','little'].forEach(node => {
+        const maxKey = `${node}-max`;
+        const configuredMax = Number(state.staged[maxKey]);
+        const live = liveMhz[node];
+        if (!configuredMax || live == null) return;
+        if (liveTempC.cpu == null || liveTempC.cpu < THROTTLE_TEMP_C) return;
+        if (live < configuredMax * THROTTLE_RATIO){
+            throttled.push(clusterNames[node]);
+        }
+    });
+    if (state.staged['gpu-max'] && liveMhz.gpu != null &&
+        liveTempC.gpu != null && liveTempC.gpu >= THROTTLE_TEMP_C){
+        const gpuMax = Number(state.staged['gpu-max']);
+        if (gpuMax && liveMhz.gpu < gpuMax * THROTTLE_RATIO) throttled.push('GPU');
+    }
+    const banner = document.getElementById('throttle-banner');
+    if (!banner) return;
+    if (throttled.length){
+        banner.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6M12 22v-6M4.9 4.9l4.2 4.2M14.9 14.9l4.2 4.2M2 12h6M16 12h6M4.9 19.1l4.2-4.2M14.9 9.1l4.2-4.2"/></svg>`
+            + `<span>Thermal throttling detected: ${throttled.join(', ')} running below configured max while hot.</span>`;
+        banner.style.display = '';
+    } else {
+        banner.style.display = 'none';
+    }
 }
 
 /* Drive a ring: value/max fraction sets stroke-dashoffset (circumference 264
