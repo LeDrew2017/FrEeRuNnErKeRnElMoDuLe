@@ -763,6 +763,19 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.2);}
 
     <!-- ============ SETTINGS ============ -->
     <section class="tab" data-tab="settings">
+        <div class="section-label">About</div>
+        <div class="card surface">
+            <div class="option-row">
+                <div class="oi"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></div>
+                <div class="option-meta"><div class="ot">Installed version</div><div class="os" id="installed-version">—</div></div>
+                <button class="reset-btn" id="update-check-btn" onclick="checkForUpdate()">Check</button>
+            </div>
+            <div class="option-row" id="update-available-row" style="display:none;">
+                <div class="oi"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></div>
+                <div class="option-meta"><div class="ot" id="update-available-text">Update available</div><div class="os">Tap to view the release</div></div>
+                <a class="reset-btn reset-all" id="update-download-link" href="#" target="_blank" style="text-decoration:none;">View</a>
+            </div>
+        </div>
         <div class="section-label">Appearance</div>
         <div class="card surface">
             <div class="option-row">
@@ -968,6 +981,16 @@ ver.susfs=v1.5.7`,
                 ? String(Math.floor(35000 + Math.random()*10000))
                 : String(Math.floor(1400 + Math.random()*900) * 1000));
             return { errno:0, stdout: parts.join('|'), stderr:'' };
+        }
+        if (cmd.includes('module.prop')){
+            return { errno:0, stdout:
+                'id=exynos9820_tune\nname=FrEeRuNnErKeRnEl MoDuLe\nversion=v1.0.0\nversionCode=1\n', stderr:'' };
+        }
+        if (cmd.includes('curl') && cmd.includes('update.json')){
+            return { errno:0, stdout: JSON.stringify({
+                version:'v1.0.1', versionCode:2,
+                zipUrl:'https://example.com/x.zip', changelog:'https://example.com/c.md'
+            }), stderr:'' };
         }
         return { errno:0, stdout:'', stderr:'' };  // writes/apply succeed silently
     }
@@ -1822,6 +1845,61 @@ function selectProfile(el){
     toast(`${p.charAt(0).toUpperCase()+p.slice(1)} profile loaded — review & Apply`);
 }
 
+const UPDATE_JSON_URL = 'https://raw.githubusercontent.com/LeDrew2017/FrEeRuNnErKeRnElManager/main/update.json';
+
+// Read the INSTALLED module's own version/versionCode from its module.prop
+// on-device — this is the ground truth, not whatever the WebUI's cached
+// state might think, so it stays correct even across module updates.
+async function readInstalledVersion(){
+    const r = await KSU.exec(`cat ${MODDIR}/module.prop 2>/dev/null`);
+    const out = { version: '—', versionCode: 0 };
+    if (r.errno !== 0 || !r.stdout) return out;
+    r.stdout.split('\n').forEach(line => {
+        const i = line.indexOf('='); if (i < 0) return;
+        const k = line.slice(0,i).trim(), v = line.slice(i+1).trim();
+        if (k === 'version') out.version = v;
+        if (k === 'versionCode') out.versionCode = parseInt(v,10) || 0;
+    });
+    return out;
+}
+
+async function checkForUpdate(){
+    const btn = document.getElementById('update-check-btn');
+    const origText = btn.textContent;
+    btn.textContent = '...'; btn.disabled = true;
+
+    const installed = await readInstalledVersion();
+    document.getElementById('installed-version').textContent = installed.version;
+
+    // Fetch the remote update.json via curl through the shell bridge — this
+    // sandboxed webview doesn't reliably support fetch() for external hosts,
+    // but the module already has real internet-capable root shell access.
+    const r = await KSU.exec(`curl -fsSL --max-time 8 "${UPDATE_JSON_URL}" 2>/dev/null`);
+    btn.textContent = origText; btn.disabled = false;
+
+    if (r.errno !== 0 || !r.stdout){
+        toast('Could not check for updates — no connection?');
+        return;
+    }
+    let remote;
+    try { remote = JSON.parse(r.stdout); } catch(e){
+        toast('Update check failed — bad response'); return;
+    }
+    const remoteCode = parseInt(remote.versionCode, 10) || 0;
+    const row = document.getElementById('update-available-row');
+    if (remoteCode > installed.versionCode){
+        document.getElementById('update-available-text').textContent =
+            `Update available: ${remote.version}`;
+        document.getElementById('update-download-link').href =
+            `https://github.com/LeDrew2017/FrEeRuNnErKeRnElManager/releases/tag/${remote.version}`;
+        row.style.display = '';
+        toast(`Update available: ${remote.version}`);
+    } else {
+        row.style.display = 'none';
+        toast('You\u2019re on the latest version');
+    }
+}
+
 function setWallpaper(cls, el){
     const wallpapers = ['wp-titanium','wp-carbon','wp-oxide','wp-cobalt','wp-avionics','wp-tungsten'];
     wallpapers.forEach(w => document.body.classList.remove(w));
@@ -2315,6 +2393,13 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     // 4. Module status + live polling.
     try { await refreshStatus(); } catch(e){ /* non-critical */ }
+
+    // 4b. Show the installed version immediately (no network call — that only
+    // happens when the user explicitly taps "Check").
+    try {
+        const installed = await readInstalledVersion();
+        document.getElementById('installed-version').textContent = installed.version;
+    } catch(e){ /* non-critical */ }
     pollLive();
     startPoll();
 });
