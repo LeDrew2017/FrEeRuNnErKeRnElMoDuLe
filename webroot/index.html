@@ -352,6 +352,8 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.2);}
 .profile-status .ps-text{font-size:.82rem;font-weight:600;color:var(--m3-on-surface-variant);}
 .profile-status.dirty .ps-dot{opacity:1;transform:scale(1);}
 .profile-status.dirty .ps-text{color:var(--m3-primary);}
+.profile-diff{padding:0 10px 12px;font-size:.78rem;color:var(--m3-on-surface-variant);line-height:1.5;}
+.profile-diff b{color:var(--m3-on-surface);font-weight:700;}
 
 /* ---------- Apply / Revert bar ---------- */
 .applybar{
@@ -469,6 +471,7 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.2);}
                 <span class="ps-dot"></span>
                 <span class="ps-text" id="ps-text">Balanced profile active</span>
             </div>
+            <div class="profile-diff" id="profile-diff" style="display:none;"></div>
         </div>
 
         <div class="section-label">Vitals</div>
@@ -1195,6 +1198,13 @@ function refreshDirty(){
     const pill = document.getElementById('device-pill');
     if (pill) pill.style.display = (n > 0 && window.innerWidth < 420) ? 'none' : '';
 
+    // The profile diff summary only describes a PENDING change — once applied
+    // or reverted there's nothing left to preview, so hide it.
+    if (n === 0){
+        const diffEl = document.getElementById('profile-diff');
+        if (diffEl) diffEl.style.display = 'none';
+    }
+
     // Reflect what the controls ACTUALLY match, not just the last profile the
     // user tapped — so imports, manual edits, or a saved config that happens to
     // equal a profile all show the true state instead of a stale label.
@@ -1789,6 +1799,40 @@ function detectMatchingProfile(){
     return null;
 }
 
+// Categorize which keys changed between two staged-control snapshots into a
+// short, readable summary — governors, CPU frequencies, GPU frequencies,
+// scheduler — so switching profiles shows what's actually about to change
+// before the user reviews/applies it.
+function summarizeProfileDiff(before, after){
+    let govCount = 0, cpuFreqCount = 0, gpuFreqCount = 0, schedChanged = false;
+    const allKeys = new Set([...Object.keys(before), ...Object.keys(after)]);
+    allKeys.forEach(k => {
+        if (k === '__profile') return;
+        if (before[k] === after[k]) return;
+        if (k.startsWith('gov-')) govCount++;
+        else if (k.startsWith('gpu-')) gpuFreqCount++;
+        else if (/^(big|mid|little)-(min|max)$/.test(k)) cpuFreqCount++;
+        else if (k === 'io-sched') schedChanged = true;
+    });
+    const parts = [];
+    if (govCount)     parts.push(`<b>${govCount}</b> governor${govCount===1?'':'s'}`);
+    if (cpuFreqCount) parts.push(`<b>${cpuFreqCount}</b> CPU frequenc${cpuFreqCount===1?'y':'ies'}`);
+    if (gpuFreqCount) parts.push(`<b>${gpuFreqCount}</b> GPU setting${gpuFreqCount===1?'':'s'}`);
+    if (schedChanged) parts.push(`I/O scheduler`);
+    return parts;
+}
+
+function showProfileDiff(before, after){
+    const el = document.getElementById('profile-diff');
+    const parts = summarizeProfileDiff(before, after);
+    if (!parts.length){
+        el.style.display = 'none';
+        return;
+    }
+    el.innerHTML = 'This will change: ' + parts.join(', ');
+    el.style.display = '';
+}
+
 function applyProfile(p){
     if (!PROBE) return;
     const cpuNodes = ['big','mid','little'].filter(n => PROBE.nodes[n]);
@@ -1839,9 +1883,14 @@ function selectProfile(el){
     const p = el.dataset.profile;
     setProfile(p);
     _prefs.profile = p; savePrefs();
+    // Capture what's currently staged BEFORE populating this profile's values,
+    // so we can show what's actually about to change.
+    const before = readControls();
     // Populate every Advanced control from this profile's derived values.
     // Nothing is written to sysfs until the user taps Apply.
     applyProfile(p);
+    const after = readControls();
+    showProfileDiff(before, after);
     toast(`${p.charAt(0).toUpperCase()+p.slice(1)} profile loaded — review & Apply`);
 }
 
