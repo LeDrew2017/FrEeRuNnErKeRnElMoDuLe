@@ -43,11 +43,30 @@ jobs:
         id: stamp
         run: |
           VERSION="${{ steps.ver.outputs.version }}"
-          # versionCode = number of existing release tags (this one included),
-          # so it always increments by exactly 1 per release with zero manual
-          # bookkeeping. Counts annotated + lightweight tags matching v*.*.*.
-          EXISTING_COUNT="$(git tag -l 'v*.*.*' | grep -vx "$VERSION" | wc -l)"
-          VCODE=$((EXISTING_COUNT + 1))
+
+          # versionCode is derived DIRECTLY from the version tag, so the two
+          # numbers always correspond and never drift apart or need external
+          # state to stay consistent: vMAJOR.MINOR.PATCH -> MAJOR*10000 +
+          # MINOR*100 + PATCH. Fixed-width per segment so e.g. v1.0.10 (10010)
+          # correctly sorts above v1.0.9 (10009), and v1.1.0 (10100) correctly
+          # sorts above any v1.0.x. Supports up to 99 for minor/patch.
+          CLEAN="${VERSION#v}"
+          MAJOR="$(echo "$CLEAN" | cut -d. -f1)"
+          MINOR="$(echo "$CLEAN" | cut -d. -f2)"
+          PATCH="$(echo "$CLEAN" | cut -d. -f3)"
+          # Each segment must independently be present and purely numeric —
+          # checking the concatenation isn't enough (e.g. "v1.0" silently
+          # yields an empty PATCH that still "looks" fine concatenated).
+          for SEG in "$MAJOR" "$MINOR" "$PATCH"; do
+            case "$SEG" in
+              ''|*[!0-9]*) echo "::error::Version '$VERSION' isn't in vMAJOR.MINOR.PATCH form — cannot derive versionCode."; exit 1 ;;
+            esac
+          done
+          if [ "$MINOR" -ge 100 ] || [ "$PATCH" -ge 100 ]; then
+            echo "::error::MINOR/PATCH must be under 100 for this versionCode scheme (got $VERSION)."; exit 1
+          fi
+          VCODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
+          echo "Derived versionCode=$VCODE from $VERSION"
           echo "vcode=$VCODE" >> "$GITHUB_OUTPUT"
 
           # Stamp both fields into module.prop for THIS BUILD ONLY — the repo's
