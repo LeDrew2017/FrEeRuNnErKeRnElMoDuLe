@@ -1059,11 +1059,28 @@ async function loadStockDefaults(){
             if (STOCK.cpugov[pn]){
                 if (!DEFAULTS[node]) DEFAULTS[node] = {};
                 DEFAULTS[node][`gov-${node}`] = STOCK.cpugov[pn];    // stock gov as reset target
+                markStockGovernor(node, STOCK.cpugov[pn]);
             }
         });
-        if (STOCK.gpugov && DEFAULTS.gpu) DEFAULTS.gpu['gov-gpu'] = STOCK.gpugov;
+        if (STOCK.gpugov && DEFAULTS.gpu){
+            DEFAULTS.gpu['gov-gpu'] = STOCK.gpugov;
+            markStockGovernor('gpu', STOCK.gpugov);
+        }
     }
     if (STOCK.sched) SCHED_DEFAULT = STOCK.sched;
+}
+
+// Tag the stock governor's <option> with a "(stock)" label so it's visually
+// clear at a glance which choice matches what the kernel actually ships with
+// — distinct from DEFAULTS, which drives the Reset button's target value.
+function markStockGovernor(node, stockGov){
+    const sel = document.querySelector(`select[data-node="gov-${node}"]`);
+    if (!sel || !stockGov) return;
+    [...sel.options].forEach(o => {
+        // strip any previous mark first so re-runs (e.g. probe retry) don't stack
+        o.textContent = o.textContent.replace(/\s*\(stock\)$/, '');
+        if (o.value === stockGov) o.textContent += ' (stock)';
+    });
 }
 
 // Set a freq slider (which holds an index) to show a given real frequency.
