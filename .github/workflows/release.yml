@@ -151,6 +151,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          # The earlier "stamp module.prop" step intentionally modifies
+          # module.prop in-place for the BUILD only — it was never meant to be
+          # committed. Discard that change now so the working tree is clean
+          # before we pull/push, otherwise git refuses to rebase.
+          git checkout -- module.prop
           git add update.json
           if ! git diff --cached --quiet; then
             git commit -m "Update update.json for ${{ steps.ver.outputs.version }} [skip ci]"
