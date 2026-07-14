@@ -374,6 +374,21 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.2);}
     transition:width .2s,background .2s;}
 .theme-dots span.on{width:16px;border-radius:3px;background:var(--m3-primary);}
 
+/* Custom theme card: distinct from the 15 hand-tuned presets — a generated
+   theme is convenient, not curated, so it's visually flagged as "make your
+   own" rather than implied to be as considered as the built-in set. */
+.theme-card-custom{background:var(--m3-surface-container-high) !important;
+    border:2px dashed var(--m3-outline);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:8px;}
+.theme-card-custom.sel{border-style:solid;border-color:var(--m3-primary);outline-color:var(--m3-primary);}
+.custom-swatch{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;
+    justify-content:center;background:var(--m3-surface-container);transition:background .2s;}
+.custom-swatch svg{width:22px;height:22px;stroke:var(--m3-on-surface-variant);}
+.theme-card-custom #custom-color-input{position:absolute;inset:0;width:100%;height:100%;
+    opacity:0;cursor:pointer;border:none;padding:0;}
+.theme-card-custom span{position:static;background:none;padding:0;color:var(--m3-on-surface-variant);
+    font-size:.72rem;font-weight:700;}
+
 /* Info rows */
 .kv-row{display:flex;justify-content:space-between;align-items:center;padding:12px 12px;font-size:.9rem;}
 .kv-row + .kv-row{border-top:1px solid var(--m3-outline);}
@@ -897,6 +912,13 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.2);}
                 <div class="theme-card wp-vantablack" data-theme="wp-vantablack" onclick="setWallpaper('wp-vantablack',this)"><span>Vantablack</span></div>
                 <div class="theme-card wp-arctic" data-theme="wp-arctic" onclick="setWallpaper('wp-arctic',this)"><span>Arctic</span></div>
                 <div class="theme-card wp-solar" data-theme="wp-solar" onclick="setWallpaper('wp-solar',this)"><span>Solar</span></div>
+                <div class="theme-card theme-card-custom" id="custom-theme-card" data-theme="wp-custom" onclick="onCustomCardTap(event)">
+                    <div class="custom-swatch" id="custom-swatch">
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 0 20 2 2 0 0 0 2-2 2 2 0 0 1 2-2h1a3 3 0 0 0 3-3c0-5-4-9-8-9Z"/><circle cx="7.5" cy="10.5" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16.5" cy="10.5" r="1"/></svg>
+                    </div>
+                    <input type="color" id="custom-color-input" value="#8ba8d4" oninput="onCustomColorPick(this.value)">
+                    <span id="custom-card-label">Custom</span>
+                </div>
             </div>
             <div class="theme-dots" id="theme-dots"></div>
         </div>
@@ -1834,7 +1856,8 @@ let _prefs = { theme:'dark', wallpaper:'wp-titanium', profile:'balanced' };
 const PREFS_PATH = STATE_DIR + '/prefs.conf';
 function savePrefs(){
     // Persist as key=value data; validated on read. Fire-and-forget.
-    const txt = `theme=${_prefs.theme}\nwallpaper=${_prefs.wallpaper}\nprofile=${_prefs.profile}\n`;
+    const cc = _prefs.customColor ? `customColor=${_prefs.customColor}\n` : '';
+    const txt = `theme=${_prefs.theme}\nwallpaper=${_prefs.wallpaper}\nprofile=${_prefs.profile}\n${cc}`;
     KSU.exec(`mkdir -p ${STATE_DIR}; cat > ${PREFS_PATH} <<'EOF__P'\n${txt}EOF__P`);
 }
 async function loadPrefs(){
@@ -1845,8 +1868,9 @@ async function loadPrefs(){
             const k = line.slice(0,i).trim(), v = line.slice(i+1).trim();
             // Validate against known-good values only.
             if (k === 'theme' && (v === 'dark' || v === 'light')) _prefs.theme = v;
-            if (k === 'wallpaper' && /^wp-[a-z]+$/.test(v)) _prefs.wallpaper = v;
+            if (k === 'wallpaper' && (/^wp-[a-z]+$/.test(v) || v === 'wp-custom')) _prefs.wallpaper = v;
             if (k === 'profile' && ['battery','balanced','performance'].includes(v)) _prefs.profile = v;
+            if (k === 'customColor' && /^#[0-9a-fA-F]{6}$/.test(v)) _prefs.customColor = v;
         });
     }
     return _prefs;
@@ -1859,9 +1883,21 @@ function applyPrefs(p){
     applyThemeIcon(light);
     // wallpaper
     ALL_THEMES.forEach(w => document.body.classList.remove(w));
-    document.body.classList.add(p.wallpaper);
-    document.querySelectorAll('.theme-card').forEach(o =>
-        o.classList.toggle('sel', o.classList.contains(p.wallpaper)));
+    clearCustomThemeOverride();
+    if (p.wallpaper === 'wp-custom' && p.customColor){
+        applyCustomTheme(p.customColor);
+        document.querySelectorAll('.theme-card').forEach(o => o.classList.remove('sel'));
+        const card = document.getElementById('custom-theme-card');
+        if (card) card.classList.add('sel');
+        const swatch = document.getElementById('custom-swatch');
+        if (swatch) swatch.style.background = p.customColor;
+        const input = document.getElementById('custom-color-input');
+        if (input) input.value = p.customColor;
+    } else {
+        document.body.classList.add(p.wallpaper);
+        document.querySelectorAll('.theme-card').forEach(o =>
+            o.classList.toggle('sel', o.classList.contains(p.wallpaper)));
+    }
     // profile
     setProfile(p.profile);
 }
@@ -2117,8 +2153,131 @@ async function checkForUpdate(){
 const ALL_THEMES = ['wp-titanium','wp-carbon','wp-oxide','wp-cobalt','wp-avionics','wp-tungsten',
     'wp-onyx','wp-graphite','wp-chrome','wp-basalt','wp-stealth','wp-nomex','wp-vantablack','wp-arctic','wp-solar'];
 
+/* ===================================================================
+   CUSTOM THEME — derive a full theme (3-stop dark gradient, light variant,
+   accent, contrast-checked text color) from one user-picked color. Applied
+   as inline CSS variables on <body>, which override the class-based presets
+   by normal CSS specificity, so no new class per possible color is needed.
+   ================================================================= */
+function hexToRgb(hex){
+    const h = hex.replace('#','');
+    return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+function rgbToHex(r,g,b){
+    const c = v => Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0');
+    return `#${c(r)}${c(g)}${c(b)}`;
+}
+// standard RGB<->HLS conversion (same math as Python's colorsys, verified)
+function rgbToHls(r,g,b){
+    r/=255; g/=255; b/=255;
+    const max=Math.max(r,g,b), min=Math.min(r,g,b);
+    let h=0, l=(max+min)/2, s=0;
+    const d = max-min;
+    if (d !== 0){
+        s = l > 0.5 ? d/(2-max-min) : d/(max+min);
+        if (max===r) h = ((g-b)/d + (g<b?6:0));
+        else if (max===g) h = (b-r)/d + 2;
+        else h = (r-g)/d + 4;
+        h /= 6;
+    }
+    return [h,l,s];
+}
+function hlsToRgb(h,l,s){
+    if (s === 0){ const v=l*255; return [v,v,v]; }
+    const q = l < 0.5 ? l*(1+s) : l+s-l*s;
+    const p = 2*l - q;
+    const hue2rgb = (p,q,t) => {
+        if (t<0) t+=1; if (t>1) t-=1;
+        if (t<1/6) return p+(q-p)*6*t;
+        if (t<1/2) return q;
+        if (t<2/3) return p+(q-p)*(2/3-t)*6;
+        return p;
+    };
+    return [hue2rgb(p,q,h+1/3)*255, hue2rgb(p,q,h)*255, hue2rgb(p,q,h-1/3)*255];
+}
+// WCAG relative luminance + contrast ratio — standard accessibility formula,
+// used here to guarantee generated text is always readable against
+// whatever accent color the derivation produces, regardless of hue picked.
+function relLuminance([r,g,b]){
+    const chan = c => { c/=255; return c<=0.03928 ? c/12.92 : Math.pow((c+0.055)/1.055, 2.4); };
+    return 0.2126*chan(r) + 0.7152*chan(g) + 0.0722*chan(b);
+}
+function contrastRatio(rgb1, rgb2){
+    const l1=relLuminance(rgb1), l2=relLuminance(rgb2);
+    const lighter=Math.max(l1,l2), darker=Math.min(l1,l2);
+    return (lighter+0.05)/(darker+0.05);
+}
+function deriveCustomTheme(pickedHex){
+    const [r,g,b] = hexToRgb(pickedHex);
+    const [h,, s] = rgbToHls(r,g,b);
+    const capSat = Math.min(s, 0.25);
+    const atLightness = (targetL, sat) => rgbToHex(...hlsToRgb(h, targetL, sat));
+
+    const darkStart = atLightness(0.18, Math.min(s,0.22));
+    const darkMid   = atLightness(0.13, Math.min(s,0.20));
+    const darkEnd   = atLightness(0.09, Math.min(s,0.18));
+    const lightStart= atLightness(0.90, Math.min(s,0.30));
+    const lightMid  = atLightness(0.82, Math.min(s,0.28));
+    const lightEnd  = atLightness(0.72, Math.min(s,0.26));
+    const accent    = rgbToHex(...hlsToRgb(h, Math.max(0.55, Math.min(0.68,1-s*0.2)), Math.min(Math.max(s,0.35),0.65)));
+    const accentLight = rgbToHex(...hlsToRgb(h, 0.32, Math.min(Math.max(s,0.40),0.7)));
+
+    const accentRgb = hexToRgb(accent);
+    const white=[255,255,255], nearBlack=[26,26,26];
+    const onPrimary = contrastRatio(accentRgb, white) > contrastRatio(accentRgb, nearBlack) ? '#ffffff' : '#1a1a1a';
+    const accentContainer = atLightness(0.30, Math.min(s,0.35));
+
+    return {
+        dark: { wallpaper: `linear-gradient(135deg, ${darkStart} 0%, ${darkMid} 55%, ${darkEnd} 100%)`,
+                primary: accent, onPrimary, primaryContainer: accentContainer },
+        light:{ wallpaper: `linear-gradient(135deg, ${lightStart} 0%, ${lightMid} 55%, ${lightEnd} 100%)`,
+                primary: accentLight, primaryContainer: lightMid },
+    };
+}
+
+function applyCustomTheme(pickedHex){
+    const derived = deriveCustomTheme(pickedHex);
+    const light = document.body.classList.contains('theme-light');
+    const set = light ? derived.light : derived.dark;
+    document.body.style.setProperty('--wallpaper', set.wallpaper);
+    document.body.style.setProperty('--m3-primary', set.primary);
+    document.body.style.setProperty('--m3-primary-container', set.primaryContainer);
+    if (!light) document.body.style.setProperty('--m3-on-primary', set.onPrimary);
+    else document.body.style.removeProperty('--m3-on-primary');
+}
+function clearCustomThemeOverride(){
+    ['--wallpaper','--m3-primary','--m3-primary-container','--m3-on-primary']
+        .forEach(v => document.body.style.removeProperty(v));
+}
+
+function onCustomCardTap(ev){
+    // If a custom color is already saved, tapping the card body (not the
+    // color swatch itself, which opens the picker) just selects it as the
+    // active theme rather than re-opening the picker every time.
+    if (_prefs.customColor && ev.target.id !== 'custom-color-input'){
+        selectCustomTheme(_prefs.customColor);
+    }
+}
+function onCustomColorPick(hex){
+    _prefs.customColor = hex;
+    selectCustomTheme(hex);
+}
+function selectCustomTheme(hex){
+    ALL_THEMES.forEach(w => document.body.classList.remove(w));
+    clearCustomThemeOverride();
+    applyCustomTheme(hex);
+    document.querySelectorAll('.theme-card').forEach(o => o.classList.remove('sel'));
+    const card = document.getElementById('custom-theme-card');
+    if (card) card.classList.add('sel');
+    const swatch = document.getElementById('custom-swatch');
+    if (swatch) swatch.style.background = hex;
+    _prefs.wallpaper = 'wp-custom'; savePrefs();
+    syncThemeDots();
+}
+
 function setWallpaper(cls, el){
     ALL_THEMES.forEach(w => document.body.classList.remove(w));
+    clearCustomThemeOverride();
     document.body.classList.add(cls);
     document.querySelectorAll('.theme-card').forEach(o => o.classList.remove('sel'));
     if (el) el.classList.add('sel');
@@ -2175,6 +2334,12 @@ function toggleTheme(){
     document.getElementById('light-switch').classList.toggle('on', light);
     applyThemeIcon(light);
     _prefs.theme = light ? 'light' : 'dark'; savePrefs();
+    // A custom theme's inline overrides are mode-specific (dark vs light
+    // variant) — re-derive for whichever mode we just switched to, otherwise
+    // it would keep showing the OLD mode's colors after toggling.
+    if (_prefs.wallpaper === 'wp-custom' && _prefs.customColor){
+        applyCustomTheme(_prefs.customColor);
+    }
 }
 
 /* ===================================================================
