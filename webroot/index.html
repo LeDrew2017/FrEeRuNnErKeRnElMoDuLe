@@ -909,19 +909,23 @@ input[type=range]::-webkit-slider-thumb:active{transform:scale(1.2);}
             </div>
         </div>
 
-        <div class="section-label">Backup</div>
+        <div class="section-label">Configs</div>
         <div class="card surface">
-            <div class="option-row" onclick="exportConfig()" style="cursor:pointer;">
-                <div class="oi"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></div>
-                <div class="option-meta"><div class="ot">Export config</div><div class="os">Saves to Download folder</div></div>
-                <span class="option-val">&#8250;</span>
+            <div class="option-row" onclick="saveConfigSlot()" style="cursor:pointer;">
+                <div class="oi"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg></div>
+                <div class="option-meta"><div class="ot">Save config</div><div class="os" id="save-config-hint">Will save as: —</div></div>
             </div>
-            <div class="option-row" onclick="document.getElementById('import-file-input').click()" style="cursor:pointer;">
+            <div class="option-row" style="border-top:1px solid var(--m3-outline);">
                 <div class="oi"><svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9M7 14l5-5 5 5"/><path d="M5 3h14"/></svg></div>
-                <div class="option-meta"><div class="ot">Import config</div><div class="os">Load a saved tuning file</div></div>
-                <span class="option-val">&#8250;</span>
+                <div class="option-meta"><div class="ot">Load config</div><div class="os">Select a saved config</div></div>
+                <select class="m3-select" id="saved-configs-select" onchange="onSavedConfigSelect(this)">
+                    <option value="">— none saved —</option>
+                </select>
             </div>
-            <input type="file" id="import-file-input" accept=".conf,.txt,text/plain,*/*" style="display:none;" onchange="importConfigFile(this)">
+            <div class="option-row" id="saved-config-actions" style="display:none;padding-top:0;">
+                <button class="reset-btn reset-all" onclick="deleteSelectedConfig()">Delete</button>
+                <button class="reset-btn" style="margin-left:auto;background:var(--m3-primary);color:var(--m3-on-primary);" onclick="applySelectedConfig()">Apply</button>
+            </div>
         </div>
     </section>
 
@@ -1816,6 +1820,7 @@ function switchTab(el){
     document.querySelector('.content').scrollTop = 0;
     // Only poll while Home is visible.
     if (target === 'home'){ pollLive(); startPoll(); } else { stopPoll(); }
+    if (target === 'settings'){ refreshSaveConfigHint(); populateSavedConfigsSelect(); }
 }
 
 /* ===================================================================
@@ -2493,10 +2498,10 @@ function promptPassword(title, sub){
    was actually applied, surviving reopen/reboot. Only sets values that are
    valid for this hardware (governor in list, freq a real OPP). */
 /* Apply one validated config line (key=value) to its matching control.
-   Shared by loadSavedConfig (reading our own saved file) and importConfigFile
-   (reading a user-provided file) — same validation either way, since an
-   imported file is no more trusted than one edited by hand. Returns true if
-   the line matched a known, valid control. */
+   Shared by loadSavedConfig (reading our own saved file), applySelectedConfig
+   (reading a user's saved config slot), and saved config loading generally —
+   same validation either way, since a saved slot is no more trusted than one
+   edited by hand. Returns true if the line matched a known, valid control. */
 function applyConfigLineToControls(k, v){
     if (!k || !v) return false;
     if (k.startsWith('gov-')){
@@ -2547,49 +2552,145 @@ function applyConfigLineToControls(k, v){
    imported file is just as untrusted as a hand-edited one), stage the valid
    values, and let the user review + Apply — nothing writes sysfs directly.
    =================================================================== */
-async function exportConfig(){
-    const r = await KSU.exec(`cat ${CONFIG_PATH} 2>/dev/null`);
-    if (r.errno !== 0 || !r.stdout){ toast('No saved config to export'); return; }
-    const stamp = new Date().toISOString().slice(0,10);
-    const dest = `/sdcard/Download/exynos9820_tune_${stamp}.txt`;
-    // Base64-encode and decode in one line — avoids multi-line heredocs, which
-    // can get mangled passing through the WebUI exec bridge (embedded newlines/
-    // terminator matching don't survive some ksu.exec() transports intact).
-    const b64 = btoa(unescape(encodeURIComponent(r.stdout)));
-    const w = await KSU.exec(`echo '${b64}' | base64 -d > "${dest}" && chmod 644 "${dest}" && echo OK`);
-    if (w.errno !== 0 || !(w.stdout||'').includes('OK')){
-        toast('Export failed — could not write to Download'); return;
-    }
-    // Verify the file actually landed (belt-and-braces against a bridge that
-    // reports success even when the underlying write silently failed).
-    const check = await KSU.exec(`[ -s "${dest}" ] && echo EXISTS`);
-    if (!(check.stdout||'').includes('EXISTS')){
-        toast('Export uncertain — check Download folder'); return;
-    }
-    toast(`Exported to Download/${dest.split('/').pop()}`);
+/* ===================================================================
+   SAVED CONFIGS — named slots so applying a new tuning doesn't erase the
+   last one. Lives entirely in STATE_DIR/saved_configs/<name>.conf, separate
+   from the live config.conf that boot/watchdog/Apply actually act on.
+   Loading a slot copies it OVER config.conf and runs it through the exact
+   same apply.sh path as a normal Apply — never a separate/weaker validation.
+   =================================================================== */
+const SAVED_CONFIGS_DIR = STATE_DIR + '/saved_configs';
+
+function escapeHtml(s){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeShell(s){ return s.replace(/[^a-zA-Z0-9 _.()-]/g, ''); }
+
+// Build the auto-name for the NEXT save: "YYYY-MM-DD · <Profile>". Profile
+// comes from the same detection used everywhere else in the app (matches a
+// real profile's exact values, or "Custom" if it doesn't), so the name
+// always reflects what's actually about to be saved, never a stale label.
+function nextConfigSlotName(){
+    const now = new Date();
+    const stamp = now.toISOString().slice(0,10);
+    const hh = String(now.getHours()).padStart(2,'0');
+    const mm = String(now.getMinutes()).padStart(2,'0');
+    const matched = typeof detectMatchingProfile === 'function' ? detectMatchingProfile() : null;
+    const label = matched ? matched.charAt(0).toUpperCase()+matched.slice(1) : 'Custom';
+    // Use a plain hyphen, not a fancy middot — it must survive escapeShell()
+    // unchanged, since this exact string becomes the real saved filename.
+    // A separator that gets silently stripped would make the pre-save hint
+    // text lie about what actually ends up on disk. Time (not just date) is
+    // included since multiple saves per day are common and were previously
+    // only distinguishable by an anonymous (2)/(3) collision counter.
+    return `${stamp} ${hh}${mm} - ${label}`;
+}
+function refreshSaveConfigHint(){
+    const hint = document.getElementById('save-config-hint');
+    if (hint) hint.textContent = 'Will save as: ' + nextConfigSlotName();
 }
 
-function importConfigFile(input){
-    const file = input.files && input.files[0];
-    input.value = '';   // reset so re-selecting the same file re-fires onchange
-    if (!file) return;
-    if (file.size > 100*1024){ toast('File too large'); return; }
-    const reader = new FileReader();
-    reader.onerror = () => toast('Could not read file');
-    reader.onload = () => {
-        const text = String(reader.result || '');
-        let applied = 0, skipped = 0;
-        text.split('\n').forEach(line => {
-            const i = line.indexOf('='); if (i < 0) return;
-            const k = line.slice(0,i).trim(), v = line.slice(i+1).trim();
-            if (!k || !v) return;
-            if (applyConfigLineToControls(k, v)) applied++; else skipped++;
-        });
-        refreshDirty();
-        if (applied === 0){ toast('No valid settings found in file'); return; }
-        toast(`Imported ${applied} setting${applied===1?'':'s'}${skipped?` · ${skipped} skipped`:''} — review & Apply`);
-    };
-    reader.readAsText(file);
+async function saveConfigSlot(){
+    const r = await KSU.exec(`cat ${CONFIG_PATH} 2>/dev/null`);
+    if (r.errno !== 0 || !r.stdout){ toast('No current config to save — apply something first'); return; }
+    let name = escapeShell(nextConfigSlotName());
+    await KSU.exec(`mkdir -p ${SAVED_CONFIGS_DIR}`);
+    // avoid silently clobbering an existing slot saved the same day+profile
+    const existsCheck = await KSU.exec(`[ -f "${SAVED_CONFIGS_DIR}/${name}.conf" ] && echo EXISTS`);
+    if ((existsCheck.stdout||'').includes('EXISTS')){
+        let n = 2;
+        while (true){
+            const candidate = `${name} (${n})`;
+            const c = await KSU.exec(`[ -f "${SAVED_CONFIGS_DIR}/${candidate}.conf" ] && echo EXISTS`);
+            if (!(c.stdout||'').includes('EXISTS')){ name = candidate; break; }
+            n++;
+        }
+    }
+    const dest = `${SAVED_CONFIGS_DIR}/${name}.conf`;
+    const b64 = btoa(unescape(encodeURIComponent(r.stdout)));
+    const w = await KSU.exec(`echo '${b64}' | base64 -d > "${dest}" && echo OK`);
+    if (w.errno !== 0 || !(w.stdout||'').includes('OK')){ toast('Save failed'); return; }
+    toast(`Saved as "${name}"`);
+    await populateSavedConfigsSelect();
+}
+
+async function populateSavedConfigsSelect(){
+    const sel = document.getElementById('saved-configs-select');
+    if (!sel) return;
+    await KSU.exec(`mkdir -p ${SAVED_CONFIGS_DIR}`);
+    const r = await KSU.exec(`ls -1t ${SAVED_CONFIGS_DIR} 2>/dev/null`);   // -t: newest first
+    const names = (r.stdout || '').split('\n')
+        .map(f => f.trim()).filter(f => f.endsWith('.conf'))
+        .map(f => f.slice(0, -5));
+    const prevValue = sel.value;
+    if (!names.length){
+        sel.innerHTML = '<option value="">\u2014 none saved \u2014</option>';
+    } else {
+        sel.innerHTML = '<option value="">Select a config\u2026</option>'
+            + names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)}</option>`).join('');
+    }
+    if (names.includes(prevValue)) sel.value = prevValue;
+    onSavedConfigSelect(sel);
+}
+function onSavedConfigSelect(sel){
+    document.getElementById('saved-config-actions').style.display = sel.value ? 'flex' : 'none';
+    // Selecting a (possibly different) config always cancels any pending
+    // delete-confirmation, so a stray second tap can never hit the wrong slot.
+    _deleteArmed = null;
+    const btn = document.querySelector('#saved-config-actions button.reset-all');
+    if (btn) btn.textContent = 'Delete';
+}
+
+async function applySelectedConfig(){
+    const sel = document.getElementById('saved-configs-select');
+    const name = sel.value;
+    if (!name) return;
+    const src = `${SAVED_CONFIGS_DIR}/${escapeShell(name)}.conf`;
+    const r = await KSU.exec(`cat "${src}" 2>/dev/null`);
+    if (r.errno !== 0 || !r.stdout){ toast('Could not read saved config'); return; }
+    let applied = 0;
+    r.stdout.split('\n').forEach(line => {
+        const i = line.indexOf('='); if (i < 0) return;
+        const k = line.slice(0,i).trim(), v = line.slice(i+1).trim();
+        if (!k || !v) return;
+        if (applyConfigLineToControls(k, v)) applied++;
+    });
+    refreshDirty();
+    if (applied === 0){ toast('No valid settings found in that config'); return; }
+    toast(`Loaded "${name}" \u2014 ${applied} settings staged, review & Apply`);
+    const advBtn = document.querySelector('.navitem[data-target="advanced"]');
+    if (advBtn) switchTab(advBtn);
+}
+
+// Two-tap delete confirmation — no dependency on window.confirm(), which
+// isn't reliably supported inside this KernelSU WebUI webview (native
+// blocking dialogs may silently no-op or always return false here, which
+// would make deletion appear to do nothing when tapped).
+let _deleteArmed = null;
+async function deleteSelectedConfig(){
+    const sel = document.getElementById('saved-configs-select');
+    const name = sel.value;
+    if (!name) return;
+    const btn = document.querySelector('#saved-config-actions button.reset-all');
+
+    if (_deleteArmed !== name){
+        _deleteArmed = name;
+        if (btn){ btn.textContent = 'Confirm delete?'; }
+        toast('Tap again to confirm deletion');
+        // auto-disarm after a few seconds so an accidental second tap later
+        // (after picking a different config) can't delete the wrong one
+        setTimeout(() => {
+            if (_deleteArmed === name){
+                _deleteArmed = null;
+                if (btn && sel.value === name) btn.textContent = 'Delete';
+            }
+        }, 4000);
+        return;
+    }
+
+    _deleteArmed = null;
+    if (btn) btn.textContent = 'Delete';
+    await KSU.exec(`rm -f "${SAVED_CONFIGS_DIR}/${escapeShell(name)}.conf"`);
+    toast(`Deleted "${name}"`);
+    await populateSavedConfigsSelect();
 }
 
 async function loadSavedConfig(){
